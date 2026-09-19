@@ -113,16 +113,21 @@
         </div>
     </div>
 
-    <!-- FIXED SCRIPT LOGIC -->
+    <!-- ESPTool Library Script -->
     <script type="module">
         import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.3.1/lib/index.js";
+        window.ESPLoader = ESPLoader;
+        window.Transport = Transport;
+    </script>
 
+    <!-- MAIN APP LOGIC (Standard Script to prevent click scope issues) -->
+    <script>
         if (!localStorage.getItem("user_roobesh_pass")) {
             localStorage.setItem("user_roobesh_pass", "09112007@");
             localStorage.setItem("user_roobesh_status", "UNUSED");
         }
 
-        window.handleLogin = function() {
+        function handleLogin() {
             if (localStorage.getItem("force_logout_active") === "true") {
                 alert("Session terminated by Admin. Please re-login.");
                 localStorage.removeItem("force_logout_active");
@@ -141,12 +146,14 @@
                 return;
             }
 
+            // Admin Login
             if (uid === "roobesh" && pass === "09112007@") {
                 document.getElementById('login-section').classList.add('hidden');
                 document.getElementById('admin-section').classList.remove('hidden');
                 return;
             }
 
+            // Customer Login
             const storedPass = localStorage.getItem(`user_${uid}_pass`);
             const status = localStorage.getItem(`user_${uid}_status`);
 
@@ -166,8 +173,7 @@
             }
         }
 
-        // Direct USB Flashing with esptool-js fixed
-        window.startRealFlash = async function() {
+        async function startRealFlash() {
             const statusText = document.getElementById('status-text');
             const flashBtn = document.getElementById('flash-btn');
             const progressContainer = document.getElementById('progress-container');
@@ -198,8 +204,8 @@
                 statusText.innerText = "Status: Connecting to ESP32-S3...";
                 progressBar.style.width = "10%";
 
-                const transport = new Transport(port);
-                const esploader = new ESPLoader({
+                const transport = new window.Transport(port);
+                const esploader = new window.ESPLoader({
                     transport: transport,
                     baudrate: 115200,
                     terminal: { clean: () => {}, writeLine: (msg) => console.log(msg) }
@@ -254,7 +260,7 @@
             }
         }
 
-        window.createCustomerUser = function() {
+        function createCustomerUser() {
             const u = document.getElementById('new-user').value.trim();
             const p = document.getElementById('new-pass').value.trim();
             if(!u || !p) {
@@ -268,7 +274,7 @@
             document.getElementById('new-pass').value = '';
         }
 
-        window.uploadAssetFile = function() {
+        function uploadAssetFile() {
             const fileInput = document.getElementById('asset-file-input');
             if(fileInput.files.length === 0) {
                 alert("Please select a file first!");
@@ -286,7 +292,7 @@
             reader.readAsDataURL(file);
         }
 
-        window.forceGlobalLogout = function() {
+        function forceGlobalLogout() {
             localStorage.setItem("force_logout_active", "true");
             alert("All active customer sessions have been terminated.");
         }
