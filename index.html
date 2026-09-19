@@ -5,12 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>R TRACK CREATION - Commercial Flasher Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- ESPTool Web Serial Library -->
-    <script type="module">
-        import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.3.1/lib/index.js";
-        window.ESPLoader = ESPLoader;
-        window.Transport = Transport;
-    </script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow-x: hidden; margin: 0; background-color: #0f172a; color: white; }
         .hidden { display: none !important; }
@@ -119,14 +113,16 @@
         </div>
     </div>
 
-    <!-- SCRIPT LOGIC -->
-    <script>
+    <!-- FIXED SCRIPT LOGIC -->
+    <script type="module">
+        import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.3.1/lib/index.js";
+
         if (!localStorage.getItem("user_roobesh_pass")) {
             localStorage.setItem("user_roobesh_pass", "09112007@");
             localStorage.setItem("user_roobesh_status", "UNUSED");
         }
 
-        function handleLogin() {
+        window.handleLogin = function() {
             if (localStorage.getItem("force_logout_active") === "true") {
                 alert("Session terminated by Admin. Please re-login.");
                 localStorage.removeItem("force_logout_active");
@@ -170,8 +166,8 @@
             }
         }
 
-        // Real USB Flashing via Web Serial API & esptool-js
-        async function startRealFlash() {
+        // Direct USB Flashing with esptool-js fixed
+        window.startRealFlash = async function() {
             const statusText = document.getElementById('status-text');
             const flashBtn = document.getElementById('flash-btn');
             const progressContainer = document.getElementById('progress-container');
@@ -202,8 +198,8 @@
                 statusText.innerText = "Status: Connecting to ESP32-S3...";
                 progressBar.style.width = "10%";
 
-                const transport = new window.Transport(port);
-                const esploader = new window.ESPLoader({
+                const transport = new Transport(port);
+                const esploader = new ESPLoader({
                     transport: transport,
                     baudrate: 115200,
                     terminal: { clean: () => {}, writeLine: (msg) => console.log(msg) }
@@ -233,7 +229,6 @@
                 statusText.className = "text-xs font-bold text-green-400 mb-4 bg-slate-900 p-3 rounded border border-green-500/50";
                 statusText.innerText = "Success! Device flashed and token permanently locked.";
 
-                // Setup asset download link
                 const savedDataUrl = localStorage.getItem("admin_uploaded_asset");
                 const downloadLink = document.getElementById('download-link');
 
@@ -247,7 +242,6 @@
                     downloadLink.download = "Connection_Details.txt";
                 }
 
-                document.getElementById('asset-asset-download-box')?.classList?.remove('hidden');
                 document.getElementById('asset-download-box').classList.remove('hidden');
 
             } catch (error) {
@@ -260,7 +254,7 @@
             }
         }
 
-        function createCustomerUser() {
+        window.createCustomerUser = function() {
             const u = document.getElementById('new-user').value.trim();
             const p = document.getElementById('new-pass').value.trim();
             if(!u || !p) {
@@ -274,7 +268,7 @@
             document.getElementById('new-pass').value = '';
         }
 
-        function uploadAssetFile() {
+        window.uploadAssetFile = function() {
             const fileInput = document.getElementById('asset-file-input');
             if(fileInput.files.length === 0) {
                 alert("Please select a file first!");
@@ -292,7 +286,7 @@
             reader.readAsDataURL(file);
         }
 
-        function forceGlobalLogout() {
+        window.forceGlobalLogout = function() {
             localStorage.setItem("force_logout_active", "true");
             alert("All active customer sessions have been terminated.");
         }
