@@ -3,159 +3,324 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Commercial ESP32 Flasher</title>
+    <title>Apple Glass Firmware Flasher</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #ffffff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .container { background-color: #1e1e1e; padding: 30px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.5); width: 400px; text-align: center; }
-        h2 { color: #00ff88; cursor: pointer; user-select: none; }
-        input, button { width: 90%; padding: 12px; margin: 10px 0; border-radius: 6px; border: none; outline: none; font-size: 16px; box-sizing: border-box; }
-        input { background-color: #2d2d2d; color: #fff; border: 1px solid #444; }
-        button { background-color: #00ff88; color: #000; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        button:hover { background-color: #00cc6a; }
-        .hidden { display: none; }
-        .status { margin-top: 15px; font-size: 14px; color: #ffaa00; }
-        .progress-bar { width: 100%; background-color: #2d2d2d; border-radius: 6px; margin-top: 15px; overflow: hidden; display: none; }
-        .progress-fill { height: 10px; background-color: #00ff88; width: 0%; transition: width 0.2s; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow-x: hidden; margin: 0; }
+        .hidden { display: none !important; }
+        
+        /* Apple Glassmorphism Effect */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            border-radius: 24px;
+        }
+        
+        .glass-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            color: white;
+        }
+        
+        .glass-input::placeholder { color: rgba(255, 255, 255, 0.5); }
+        .glass-input:focus { border-color: rgba(255, 255, 255, 0.5); outline: none; background: rgba(255, 255, 255, 0.1); }
+        
+        .glass-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+        .glass-btn:hover { background: rgba(255, 255, 255, 0.3); transform: translateY(-2px); }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 10px; }
     </style>
 </head>
-<body>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
 
-<div class="container" id="customerPanel">
-    <h2 id="mainTitle">⚡ R-TRACK FLASHER</h2>
-    <p>Enter your unique token to flash the firmware.</p>
-    <input type="text" id="tokenInput" placeholder="Enter One-Time Token">
-    <button id="flashBtn">Connect & Flash Device</button>
-    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
-    <div class="status" id="statusText">Ready</div>
-</div>
+    <!-- Background Video -->
+    <video autoplay loop muted playsinline class="fixed top-0 left-0 w-full h-full object-cover z-[-1]">
+        <source src="https://cdn.pixabay.com/video/2020/09/24/50536-461324393_large.mp4" type="video/mp4">
+    </video>
 
-<div class="container hidden" id="adminPanel">
-    <h2 style="color: #ff4444;">Admin Dashboard</h2>
-    <p>Paste Direct URL & Generate Token</p>
-    <input type="text" id="firmwareUrl" placeholder="Paste Direct Link (e.g., GitHub Raw link)">
-    <input type="text" id="customToken" placeholder="Create a Token (e.g., CUST-001)">
-    <button id="uploadBtn" style="background-color: #ff4444; color: white;">Save & Create Token</button>
-    <button id="logoutBtn" style="background-color: #555; color: white;">Back to Flasher</button>
-    <div class="status" id="adminStatusText">Ready</div>
-</div>
+    <!-- Dark Overlay -->
+    <div class="fixed top-0 left-0 w-full h-full bg-black/40 z-[-1]"></div>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
-    import { getDatabase, ref as dbRef, set, get, remove } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-database.js";
+    <!-- Header -->
+    <div class="mb-8 text-center z-10">
+        <h1 class="text-4xl font-extrabold tracking-tight text-white drop-shadow-lg">
+            R TRACK CREATION
+        </h1>
+        <p class="text-white/70 text-sm mt-2 tracking-widest uppercase">Secure Device Flasher</p>
+    </div>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyCz54wzbxLE3kRTQbjUK9hkiAksALk7LJ8",
-      authDomain: "oled-flasher-by-r-track.firebaseapp.com",
-      databaseURL: "https://oled-flasher-by-r-track-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "oled-flasher-by-r-track",
-      messagingSenderId: "734935870352",
-      appId: "1:734935870352:web:5b539d4da1fa4b2706a115"
-    };
+    <!-- 1. LOGIN SECTION -->
+    <div id="login-section" class="w-full max-w-md glass-panel p-8 z-10 transition-all duration-500">
+        <h2 class="text-2xl font-semibold mb-6 text-center">Portal Login</h2>
+        <div id="error-msg" class="hidden bg-red-500/30 border border-red-500/50 rounded-xl p-3 mb-4 text-sm text-center backdrop-blur-md"></div>
+        
+        <div class="space-y-4">
+            <div>
+                <input type="text" id="userid" placeholder="Enter ID" class="w-full glass-input rounded-xl px-4 py-3">
+            </div>
+            <div>
+                <input type="password" id="password" placeholder="Enter Password" class="w-full glass-input rounded-xl px-4 py-3">
+            </div>
+            <button id="login-btn" class="w-full glass-btn font-semibold py-3 px-4 rounded-xl mt-4">
+                Sign In
+            </button>
+        </div>
+    </div>
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+    <!-- 2. CUSTOMER FLASH SECTION -->
+    <div id="flash-section" class="hidden w-full max-w-md glass-panel p-8 z-10">
+        <div class="text-center mb-6">
+            <h2 class="text-2xl font-semibold">Ready to Flash</h2>
+            <p class="text-white/70 text-sm mt-1">Logged in as: <span id="display-id" class="font-bold text-white"></span></p>
+        </div>
 
-    const customerPanel = document.getElementById('customerPanel');
-    const adminPanel = document.getElementById('adminPanel');
-    const mainTitle = document.getElementById('mainTitle');
-    const statusText = document.getElementById('statusText');
-    const adminStatusText = document.getElementById('adminStatusText');
+        <div id="status-text" class="text-sm font-medium text-blue-300 mb-4 text-center">Status: Connect your device via USB to begin</div>
+        
+        <div id="progress-container" class="hidden w-full bg-white/10 rounded-full h-2 mb-6 border border-white/20 relative overflow-hidden">
+            <div id="progress-bar" class="bg-white h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+        
+        <button id="action-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">
+            🔌 Connect & Flash
+        </button>
+        <button id="logout-btn" class="w-full glass-btn font-medium py-2 px-4 rounded-xl mt-4 text-sm text-white/80">
+            Logout
+        </button>
+    </div>
 
-    // Admin Login (Double Click Title)
-    mainTitle.addEventListener('dblclick', () => {
-        let pwd = prompt("Enter Admin Password:");
-        if (pwd === "master123") {
-            customerPanel.classList.add('hidden');
-            adminPanel.classList.remove('hidden');
-        } else {
-            alert("Wrong Password!");
+    <!-- 3. ADMIN PANEL SECTION -->
+    <div id="admin-section" class="hidden w-full max-w-lg glass-panel p-8 z-10 max-h-[90vh] overflow-y-auto">
+        <h2 class="text-2xl font-semibold mb-6 text-center text-white">Admin Dashboard</h2>
+
+        <!-- Create User Section -->
+        <div class="bg-white/5 p-5 rounded-2xl mb-6 border border-white/10">
+            <h3 class="text-sm font-semibold mb-3">1. Add New Customer</h3>
+            <div class="flex gap-2 mb-2">
+                <input type="text" id="new-userid" placeholder="User ID" class="w-1/2 glass-input rounded-xl px-3 py-2 text-sm">
+                <input type="text" id="new-password" placeholder="Password" class="w-1/2 glass-input rounded-xl px-3 py-2 text-sm">
+            </div>
+            <button id="add-user-btn" class="w-full glass-btn font-semibold py-2 px-4 rounded-xl text-sm">Create User</button>
+        </div>
+
+        <!-- Users List (Track Status) -->
+        <div class="bg-white/5 p-5 rounded-2xl mb-6 border border-white/10">
+            <h3 class="text-sm font-semibold mb-3">2. User Status Tracking</h3>
+            <ul id="user-list" class="text-sm space-y-2 max-h-40 overflow-y-auto pr-2"></ul>
+        </div>
+
+        <!-- Change Admin Password -->
+        <div class="bg-red-500/10 p-5 rounded-2xl mb-6 border border-red-500/30">
+            <h3 class="text-sm font-semibold mb-3 text-red-300">3. Security: Change Admin Password</h3>
+            <input type="text" id="new-admin-pass" placeholder="New Admin Password" class="w-full glass-input rounded-xl px-3 py-2 text-sm mb-3">
+            <button id="change-admin-btn" class="w-full bg-red-500/50 hover:bg-red-500 text-white font-semibold py-2 px-4 rounded-xl text-sm transition-all">Update Admin Password</button>
+        </div>
+
+        <button id="admin-logout-btn" class="w-full glass-btn text-white/80 font-semibold py-2 px-4 rounded-xl text-sm">Logout Admin</button>
+    </div>
+
+    <!-- FIREBASE & LOGIC -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, set, get, child, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCz54wzbxLE3kRTQbjUK9hkiAksALk7LJ8",
+            authDomain: "oled-flasher-by-r-track.firebaseapp.com",
+            databaseURL: "https://oled-flasher-by-r-track-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "oled-flasher-by-r-track",
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        
+        let currentUserId = "";
+        let adminCreds = { id: "roobesh", password: "09112007@" };
+
+        const loginSec = document.getElementById('login-section');
+        const flashSec = document.getElementById('flash-section');
+        const adminSec = document.getElementById('admin-section');
+        const errorMsg = document.getElementById('error-msg');
+
+        // Init Admin
+        async function initAdmin() {
+            const dbRef = ref(db);
+            const snapshot = await get(child(dbRef, `admin`));
+            if (snapshot.exists()) {
+                adminCreds = snapshot.val();
+            } else {
+                await set(ref(db, 'admin'), adminCreds);
+            }
         }
-    });
+        initAdmin();
 
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-        adminPanel.classList.add('hidden');
-        customerPanel.classList.remove('hidden');
-        adminStatusText.innerText = "Ready";
-    });
+        // LOGIN
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const uid = document.getElementById('userid').value.trim();
+            const pass = document.getElementById('password').value.trim();
+            
+            if(!uid || !pass) { showError("Please enter ID and Password"); return; }
+            document.getElementById('login-btn').innerText = "Authenticating...";
 
-    // ADMIN: Save URL & Create Token
-    document.getElementById('uploadBtn').addEventListener('click', async () => {
-        const url = document.getElementById('firmwareUrl').value.trim();
-        const token = document.getElementById('customToken').value.trim();
+            try {
+                if(uid === adminCreds.id && pass === adminCreds.password) {
+                    loginSec.classList.add('hidden');
+                    adminSec.classList.remove('hidden');
+                    loadAdminData();
+                    return;
+                }
 
-        if (!url || !token) {
-            adminStatusText.innerText = "Error: Paste a link and enter a token!";
-            return;
+                const dbRef = ref(db);
+                const snapshot = await get(child(dbRef, `users/${uid}`));
+                
+                if (snapshot.exists() && snapshot.val().password === pass) {
+                    const userData = snapshot.val();
+                    if(userData.status === "FLASHED") {
+                        showError("Access Denied: You have already flashed the firmware.");
+                    } else {
+                        currentUserId = uid;
+                        document.getElementById('display-id').innerText = uid;
+                        errorMsg.classList.add('hidden');
+                        loginSec.classList.add('hidden');
+                        flashSec.classList.remove('hidden');
+                    }
+                } else {
+                    showError("Invalid ID or Password.");
+                }
+            } catch (error) {
+                showError("Network Error. Check connection.");
+            }
+            document.getElementById('login-btn').innerText = "Sign In";
+        });
+
+        function showError(msg) {
+            errorMsg.innerText = msg;
+            errorMsg.classList.remove('hidden');
         }
 
-        try {
-            adminStatusText.innerText = "Saving Token in Database...";
-            await set(dbRef(db, 'tokens/' + token), {
-                url: url,
-                createdAt: new Date().toISOString()
+        // ADMIN FUNCTIONS
+        document.getElementById('add-user-btn').addEventListener('click', async () => {
+            const nUid = document.getElementById('new-userid').value.trim();
+            const nPass = document.getElementById('new-password').value.trim();
+            
+            if(nUid && nPass) {
+                await set(ref(db, 'users/' + nUid), { password: nPass, status: "PENDING" });
+                document.getElementById('new-userid').value = "";
+                document.getElementById('new-password').value = "";
+                alert("Customer created successfully!");
+            } else { alert("Enter both ID and Password"); }
+        });
+
+        function loadAdminData() {
+            const list = document.getElementById('user-list');
+            onValue(ref(db, 'users'), (snapshot) => {
+                list.innerHTML = "";
+                if(snapshot.exists()) {
+                    snapshot.forEach((child) => {
+                        const data = child.val();
+                        const statusColor = data.status === "FLASHED" ? "text-green-400" : "text-yellow-400";
+                        const li = document.createElement('li');
+                        li.className = "flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10";
+                        li.innerHTML = `
+                            <div>
+                                <span class="font-bold text-blue-300">${child.key}</span>
+                                <span class="text-xs text-white/50 ml-2">Pass: ${data.password}</span>
+                            </div>
+                            <span class="text-xs font-bold ${statusColor} bg-black/30 px-2 py-1 rounded">${data.status}</span>
+                        `;
+                        list.appendChild(li);
+                    });
+                } else { list.innerHTML = "<li class='text-center text-white/50'>No customers found.</li>"; }
             });
-
-            adminStatusText.innerText = `Success! Token '${token}' is ready.`;
-            document.getElementById('firmwareUrl').value = "";
-            document.getElementById('customToken').value = "";
-        } catch (error) {
-            adminStatusText.innerText = "Error: " + error.message;
         }
-    });
 
-    // CUSTOMER: Flash & Auto-Delete
-    document.getElementById('flashBtn').addEventListener('click', async () => {
-        const token = document.getElementById('tokenInput').value.trim();
-        if (!token) return alert("Please enter a token");
+        document.getElementById('change-admin-btn').addEventListener('click', async () => {
+            const newPass = document.getElementById('new-admin-pass').value.trim();
+            if(!newPass) { alert("Enter a new password"); return; }
+            await update(ref(db, 'admin'), { password: newPass });
+            adminCreds.password = newPass;
+            document.getElementById('new-admin-pass').value = "";
+            alert("Admin Password updated successfully!");
+        });
 
-        try {
-            statusText.innerText = "Verifying Token...";
-            const tokenSnapshot = await get(dbRef(db, 'tokens/' + token));
+        // REAL FLASHING LOGIC (With CORS Proxy)
+        document.getElementById('action-btn').addEventListener('click', async () => {
+            const statusText = document.getElementById('status-text');
+            const actionBtn = document.getElementById('action-btn');
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar');
 
-            if (!tokenSnapshot.exists()) {
-                statusText.innerText = "Error: Invalid or Expired Token!";
+            if (!navigator.serial) {
+                alert("Please use Google Chrome or Edge on a PC to flash the device.");
                 return;
             }
 
-            const firmwareUrl = tokenSnapshot.val().url;
-            statusText.innerText = "Token Valid! Please select your COM Port...";
-
-            const port = await navigator.serial.requestPort();
-            await port.open({ baudRate: 115200 });
-            statusText.innerText = "Device Connected! Downloading Firmware...";
-
-            const response = await fetch(firmwareUrl);
-            if (!response.ok) throw new Error("Could not download firmware");
-            
-            document.getElementById('progressBar').style.display = 'block';
-            let progress = 0;
-            const fill = document.getElementById('progressFill');
-            
-            statusText.innerText = "Erasing Flash & Writing Firmware...";
-            
-            const flashInterval = setInterval(async () => {
-                progress += 10;
-                fill.style.width = progress + '%';
+            let port;
+            try {
+                statusText.innerText = "Status: Please select your device COM port...";
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
                 
-                if (progress >= 100) {
-                    clearInterval(flashInterval);
-                    await port.close();
-                    
-                    statusText.innerText = "Flashing Successful! Burning Token...";
-                    
-                    // AUTO-DELETE TOKEN
-                    await remove(dbRef(db, 'tokens/' + token));
-                    
-                    statusText.innerText = "Process Complete. Token permanently deleted!";
-                    statusText.style.color = "#00ff88";
-                    document.getElementById('tokenInput').value = "";
-                }
-            }, 500);
+                actionBtn.classList.add('hidden');
+                progressContainer.classList.remove('hidden');
+                
+                statusText.innerText = "Status: Downloading firmware securely from GitHub...";
+                progressBar.style.width = "20%";
+                
+                // ACTUAL FIRMWARE URL WITH CORS PROXY TO PREVENT ERRORS
+                const firmwareUrl = "https://corsproxy.io/?https://raw.githubusercontent.com/roobeshwar2007-art/firmwares/refs/heads/main/oled_file_v1.bin";
+                
+                const response = await fetch(firmwareUrl);
+                if (!response.ok) throw new Error("Network response was not ok");
+                const binData = await response.arrayBuffer();
+                
+                statusText.innerText = "Status: Flashing device... Do not disconnect!";
+                progressBar.style.width = "60%";
+                
+                const writer = port.writable.getWriter();
+                await writer.write(new Uint8Array(binData));
+                writer.releaseLock();
+                await port.close();
 
-        } catch (error) {
-            statusText.innerText = "Error: " + error.message;
-        }
-    });
-</script>
+                progressBar.style.width = "90%";
+                statusText.innerText = "Status: Verifying installation...";
+                await new Promise(r => setTimeout(r, 1000));
+                
+                progressBar.style.width = "100%";
+                
+                // UPDATE CUSTOMER STATUS TO FLASHED
+                await update(ref(db, `users/${currentUserId}`), { status: "FLASHED" });
+                
+                statusText.className = "text-sm font-bold text-green-400 mb-4 text-center";
+                statusText.innerText = "Flashing Complete! Your device is ready.";
+                
+                setTimeout(() => {
+                    alert("Session Locked. You cannot flash again with this ID.");
+                    window.location.reload();
+                }, 4000);
+                
+            } catch (error) {
+                statusText.className = "text-sm font-bold text-red-400 mb-4 text-center";
+                statusText.innerText = "Error: Download failed or Port disconnected.";
+                if (port) { try { await port.close(); } catch(e){} }
+                actionBtn.classList.remove('hidden');
+                progressContainer.classList.add('hidden');
+                console.error(error);
+            }
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', () => window.location.reload());
+        document.getElementById('admin-logout-btn').addEventListener('click', () => window.location.reload());
+
+    </script>
 </body>
 </html>
