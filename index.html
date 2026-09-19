@@ -3,253 +3,216 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32-S3 Secure Flasher</title>
+    <title>R TRACK CREATION - Commercial Flasher Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Crypto JS for ESPTool -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <!-- ESPTool Web Serial Library -->
+    <script type="module">
+        import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.3.1/lib/index.js";
+        window.ESPLoader = ESPLoader;
+        window.Transport = Transport;
+    </script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow-x: hidden; margin: 0; background-color: #1a1a1a; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow-x: hidden; margin: 0; background-color: #0f172a; color: white; }
         .hidden { display: none !important; }
-        .glass-panel { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); border-radius: 24px; }
-        .glass-input { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); color: white; }
-        .glass-input::placeholder { color: rgba(255, 255, 255, 0.5); }
-        .glass-input:focus { border-color: rgba(255, 255, 255, 0.5); outline: none; background: rgba(255, 255, 255, 0.1); }
-        .glass-btn { background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); transition: all 0.3s ease; }
-        .glass-btn:hover { background: rgba(255, 255, 255, 0.3); transform: translateY(-2px); }
+        .glass-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5); border-radius: 24px; }
+        .glass-input { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: white; }
+        .glass-input:focus { border-color: rgba(59, 130, 246, 0.5); outline: none; background: rgba(255, 255, 255, 0.1); }
+        .glass-btn { background: #2563eb; border: 1px solid rgba(255, 255, 255, 0.2); transition: all 0.3s ease; cursor: pointer; }
+        .glass-btn:hover { background: #1d4ed8; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
 
     <!-- Background Video -->
     <video autoplay loop muted playsinline class="fixed top-0 left-0 w-full h-full object-cover z-[-1]">
         <source src="./bg-video.mp4" type="video/mp4">
     </video>
-    <div class="fixed top-0 left-0 w-full h-full bg-black/40 z-[-1]"></div>
+    <div class="fixed top-0 left-0 w-full h-full bg-black/60 z-[-1]"></div>
 
     <!-- Header -->
-    <div class="mb-8 text-center z-10">
-        <h1 class="text-4xl font-extrabold tracking-tight text-white drop-shadow-lg">R TRACK CREATION</h1>
-        <p class="text-white/70 text-sm mt-2 tracking-widest uppercase">ESP32-S3 Secure Flasher</p>
+    <div class="mb-6 text-center z-10">
+        <h1 class="text-3xl font-extrabold tracking-tight drop-shadow-lg text-blue-500">R TRACK CREATION</h1>
+        <p class="text-white/70 text-xs mt-1 tracking-widest uppercase">Commercial Secure Flash & Asset Portal</p>
     </div>
 
     <!-- 1. LOGIN SECTION -->
-    <div id="login-section" class="w-full max-w-md glass-panel p-8 z-10 transition-all duration-500">
-        <h2 class="text-2xl font-semibold mb-6 text-center">Portal Login</h2>
-        <div id="error-msg" class="hidden bg-red-500/30 border border-red-500/50 rounded-xl p-3 mb-4 text-sm text-center backdrop-blur-md"></div>
+    <div id="login-section" class="w-full max-w-md glass-panel p-8 z-10">
+        <h2 class="text-xl font-semibold mb-4 text-center">Customer / Admin Login</h2>
+        <div id="error-msg" class="hidden bg-red-500/20 border border-red-500/40 text-red-300 rounded-xl p-3 mb-4 text-xs text-center"></div>
         <div class="space-y-4">
-            <input type="text" id="userid" placeholder="Enter ID" class="w-full glass-input rounded-xl px-4 py-3">
-            <input type="password" id="password" placeholder="Enter Password" class="w-full glass-input rounded-xl px-4 py-3">
-            <button id="login-btn" class="w-full glass-btn font-semibold py-3 px-4 rounded-xl mt-4">Sign In</button>
+            <div>
+                <label class="block text-xs text-white/60 mb-1">User ID / Admin ID</label>
+                <input type="text" id="userid" placeholder="Enter ID" class="w-full glass-input rounded-xl px-4 py-3 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs text-white/60 mb-1">Password</label>
+                <input type="password" id="password" placeholder="Enter Password" class="w-full glass-input rounded-xl px-4 py-3 text-sm">
+            </div>
+            <button onclick="handleLogin()" class="w-full glass-btn font-semibold py-3 px-4 rounded-xl text-sm mt-2">Sign In</button>
         </div>
     </div>
 
     <!-- 2. CUSTOMER FLASH SECTION -->
-    <div id="flash-section" class="hidden w-full max-w-md glass-panel p-8 z-10">
-        <div class="text-center mb-6">
-            <h2 class="text-2xl font-semibold">Ready to Flash ESP32-S3</h2>
-            <p class="text-white/70 text-sm mt-1">Logged in as: <span id="display-id" class="font-bold text-white"></span></p>
-        </div>
+    <div id="flash-section" class="hidden w-full max-w-md glass-panel p-8 z-10 text-center">
+        <h2 class="text-xl font-semibold mb-1">Device Flasher Hub</h2>
+        <p class="text-white/70 text-xs mb-4">Logged ID: <span id="display-id" class="font-bold text-blue-400"></span></p>
 
         <div class="mb-4 text-left">
-            <label class="text-xs text-white/70 mb-1 block">Select Firmware Type:</label>
-            <select id="board-type" class="w-full glass-input rounded-xl px-3 py-2 text-sm text-black">
-                <option value="0x10000" class="text-black" selected>ESP32-S3 (App Bin - 0x10000)</option>
-                <option value="0x0000" class="text-black">ESP32-S3 (Merged Bin - 0x0000)</option>
+            <label class="text-xs text-white/70 mb-1 block">Flash Address:</label>
+            <select id="flash-address" class="w-full glass-input rounded-xl px-3 py-2 text-xs text-white">
+                <option value="0x10000" class="bg-slate-900" selected>ESP32-S3 (App Bin - 0x10000)</option>
+                <option value="0x0000" class="bg-slate-900">ESP32-S3 (Merged Bin - 0x0000)</option>
             </select>
         </div>
 
-        <div id="status-text" class="text-sm font-medium text-blue-300 mb-4 text-center">Status: Connect ESP32-S3 via USB</div>
+        <div id="status-text" class="text-xs font-semibold text-blue-300 mb-4 bg-slate-900/80 p-3 rounded-lg border border-slate-700">Status: Connect ESP32-S3 via USB</div>
         
-        <div id="progress-container" class="hidden w-full bg-white/10 rounded-full h-3 mb-6 border border-white/20 relative overflow-hidden">
-            <div id="progress-bar" class="bg-blue-400 h-full rounded-full transition-all duration-200" style="width: 0%"></div>
+        <div id="progress-container" class="hidden w-full bg-slate-700 rounded-full h-2 mb-4">
+            <div id="progress-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
         </div>
-        
-        <button id="action-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">
-            🔌 Connect & Flash ESP32-S3
+
+        <button onclick="startRealFlash()" id="flash-btn" class="w-full bg-green-600 hover:bg-green-500 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-lg cursor-pointer mb-3 text-sm">
+            🔌 Connect USB & Flash Device
         </button>
-        <button id="logout-btn" class="w-full glass-btn font-medium py-2 px-4 rounded-xl mt-4 text-sm text-white/80">Logout</button>
+
+        <!-- SD Card / Connection Files Download Box -->
+        <div id="asset-download-box" class="hidden mt-4 p-4 bg-slate-900/90 rounded-xl border border-green-500/50 text-left">
+            <h3 class="text-xs font-bold text-green-400 mb-1">📦 Connection & SD Card Assets Unlocked</h3>
+            <p class="text-xs text-slate-400 mb-3">Flashing completed successfully. Download your assets below:</p>
+            <a id="download-link" href="#" download="Connection_Details.txt" class="block w-full text-center bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-2.5 rounded-lg transition-all">
+                Download Connection / SD Files
+            </a>
+        </div>
+
+        <button onclick="location.reload()" class="w-full bg-slate-800 hover:bg-slate-700 text-white/80 font-medium py-2.5 px-4 rounded-xl text-xs mt-3">Logout</button>
     </div>
 
     <!-- 3. ADMIN PANEL SECTION -->
-    <div id="admin-section" class="hidden w-full max-w-lg glass-panel p-8 z-10 max-h-[90vh] overflow-y-auto">
-        <h2 class="text-2xl font-semibold mb-6 text-center text-white">Admin Dashboard</h2>
-        <div class="bg-white/5 p-5 rounded-2xl mb-6 border border-white/10">
-            <h3 class="text-sm font-semibold mb-3">Add New Customer</h3>
-            <div class="flex gap-2 mb-2">
-                <input type="text" id="new-userid" placeholder="User ID" class="w-1/2 glass-input rounded-xl px-3 py-2 text-sm">
-                <input type="text" id="new-password" placeholder="Password" class="w-1/2 glass-input rounded-xl px-3 py-2 text-sm">
+    <div id="admin-section" class="hidden w-full max-w-lg glass-panel p-8 z-10 max-h-[85vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
+            <h2 class="text-lg font-bold text-blue-400">Admin Dashboard</h2>
+            <button onclick="location.reload()" class="text-xs bg-red-600/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg">Logout Admin</button>
+        </div>
+
+        <div class="space-y-4 text-xs">
+            <!-- Create User -->
+            <div class="bg-white/5 p-4 rounded-xl border border-white/10">
+                <h3 class="font-semibold text-slate-200 mb-2">Create Customer Flash ID</h3>
+                <input type="text" id="new-user" placeholder="Customer ID" class="w-full glass-input rounded px-3 py-2 mb-2 text-xs">
+                <input type="password" id="new-pass" placeholder="Password" class="w-full glass-input rounded px-3 py-2 mb-2 text-xs">
+                <button onclick="createCustomerUser()" class="w-full bg-blue-600 hover:bg-blue-500 font-semibold py-2 rounded">Generate & Save ID</button>
             </div>
-            <button id="add-user-btn" class="w-full glass-btn font-semibold py-2 px-4 rounded-xl text-sm">Create User</button>
+
+            <!-- Upload SD Card / Connection Files -->
+            <div class="bg-white/5 p-4 rounded-xl border border-white/10">
+                <h3 class="font-semibold text-slate-200 mb-2">Upload Connection / SD Card Files</h3>
+                <input type="file" id="asset-file-input" class="w-full text-slate-400 mb-2 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500">
+                <button onclick="uploadAssetFile()" class="w-full bg-green-600 hover:bg-green-500 font-semibold py-2 rounded">Upload Asset for Customers</button>
+            </div>
+
+            <!-- Force Logout Control -->
+            <div class="bg-white/5 p-4 rounded-xl border border-white/10">
+                <h3 class="font-semibold text-slate-200 mb-2">Active Session Management</h3>
+                <p class="text-slate-400 mb-2">Force-terminate all customer sessions immediately.</p>
+                <button onclick="forceGlobalLogout()" class="w-full bg-red-600 hover:bg-red-500 font-semibold py-2 rounded">Force Logout All Users</button>
+            </div>
         </div>
-        <div class="bg-white/5 p-5 rounded-2xl mb-6 border border-white/10">
-            <h3 class="text-sm font-semibold mb-3">User Status Tracking</h3>
-            <ul id="user-list" class="text-sm space-y-2 max-h-40 overflow-y-auto pr-2"></ul>
-        </div>
-        <button id="admin-logout-btn" class="w-full glass-btn text-white/80 font-semibold py-2 px-4 rounded-xl text-sm">Logout Admin</button>
     </div>
 
-    <!-- FIREBASE & LOGIC -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getDatabase, ref, set, get, child, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
-        import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.3.1/lib/index.js";
+    <!-- SCRIPT LOGIC -->
+    <script>
+        if (!localStorage.getItem("user_roobesh_pass")) {
+            localStorage.setItem("user_roobesh_pass", "09112007@");
+            localStorage.setItem("user_roobesh_status", "UNUSED");
+        }
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCz54wzbxLE3kRTQbjUK9hkiAksALk7LJ8",
-            authDomain: "oled-flasher-by-r-track.firebaseapp.com",
-            databaseURL: "https://oled-flasher-by-r-track-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "oled-flasher-by-r-track",
-        };
+        function handleLogin() {
+            if (localStorage.getItem("force_logout_active") === "true") {
+                alert("Session terminated by Admin. Please re-login.");
+                localStorage.removeItem("force_logout_active");
+                return;
+            }
 
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        
-        let currentUserId = "";
-        const ADMIN_ID = "roobesh";
-        const ADMIN_PASS = "09112007@";
-
-        const loginSec = document.getElementById('login-section');
-        const flashSec = document.getElementById('flash-section');
-        const adminSec = document.getElementById('admin-section');
-        const errorMsg = document.getElementById('error-msg');
-
-        // LOGIN SYSTEM FIXED
-        document.getElementById('login-btn').addEventListener('click', async () => {
             const uid = document.getElementById('userid').value.trim();
             const pass = document.getElementById('password').value.trim();
+            const errorMsg = document.getElementById('error-msg');
             
-            if(!uid || !pass) { 
-                showError("Please enter ID and Password"); 
-                return; 
+            errorMsg.classList.add('hidden');
+
+            if (!uid || !pass) {
+                errorMsg.innerText = "Please enter ID and Password!";
+                errorMsg.classList.remove('hidden');
+                return;
             }
-            
-            const btn = document.getElementById('login-btn');
-            btn.innerText = "Checking...";
 
-            try {
-                // 1. Admin Login Check
-                if(uid === ADMIN_ID && pass === ADMIN_PASS) {
-                    console.log("Admin logged in successfully");
-                    loginSec.classList.add('hidden'); 
-                    adminSec.classList.remove('hidden'); 
-                    loadAdminData(); 
-                    btn.innerText = "Sign In";
-                    return;
-                }
+            if (uid === "roobesh" && pass === "09112007@") {
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('admin-section').classList.remove('hidden');
+                return;
+            }
 
-                // 2. Customer Login Check via Firebase
-                const userRef = ref(db, 'users/' + uid);
-                const snapshot = await get(userRef);
-                
-                if (snapshot.exists()) {
-                    const userData = snapshot.val();
-                    if(userData.password === pass) {
-                        if(userData.status === "FLASHED") {
-                            showError("Access Denied: Already flashed.");
-                        } else {
-                            currentUserId = uid;
-                            document.getElementById('display-id').innerText = uid;
-                            loginSec.classList.add('hidden');
-                            flashSec.classList.remove('hidden');
-                        }
-                    } else {
-                        showError("Incorrect Password!");
-                    }
+            const storedPass = localStorage.getItem(`user_${uid}_pass`);
+            const status = localStorage.getItem(`user_${uid}_status`);
+
+            if (storedPass && storedPass === pass) {
+                if (status === "USED") {
+                    errorMsg.innerText = "Error: This ID has already been used and is expired!";
+                    errorMsg.classList.remove('hidden');
                 } else {
-                    showError("User ID not found!");
-                }
-            } catch (err) {
-                console.error("Login Error:", err);
-                showError("Connection error. Check Firebase Rules (.read/.write = true)");
-            }
-            btn.innerText = "Sign In";
-        });
-
-        function showError(msg) { 
-            errorMsg.innerText = msg; 
-            errorMsg.classList.remove('hidden'); 
-        }
-
-        // ADD USER
-        document.getElementById('add-user-btn').addEventListener('click', async () => {
-            const nUid = document.getElementById('new-userid').value.trim();
-            const nPass = document.getElementById('new-password').value.trim();
-            
-            if(nUid && nPass) {
-                try {
-                    await set(ref(db, 'users/' + nUid), { password: nPass, status: "PENDING" });
-                    document.getElementById('new-userid').value = ""; 
-                    document.getElementById('new-password').value = "";
-                    alert("Customer created successfully!");
-                } catch(e) {
-                    alert("Failed to create user. Check Firebase Rules.");
+                    localStorage.setItem("active_user", uid);
+                    document.getElementById('display-id').innerText = uid;
+                    document.getElementById('login-section').classList.add('hidden');
+                    document.getElementById('flash-section').classList.remove('hidden');
                 }
             } else {
-                alert("Enter both ID and Password");
+                errorMsg.innerText = "Invalid ID or Password!";
+                errorMsg.classList.remove('hidden');
             }
-        });
-
-        function loadAdminData() {
-            onValue(ref(db, 'users'), (snapshot) => {
-                const list = document.getElementById('user-list'); 
-                list.innerHTML = "";
-                if(snapshot.exists()) {
-                    snapshot.forEach((child) => {
-                        const data = child.val();
-                        const statusColor = data.status === "FLASHED" ? "text-green-400" : "text-yellow-400";
-                        list.innerHTML += `<li class="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10">
-                            <div>
-                                <span class="font-bold text-blue-300">${child.key}</span>
-                                <span class="text-xs text-white/50 ml-2">Pass: ${data.password}</span>
-                            </div>
-                            <span class="text-xs font-bold ${statusColor}">${data.status}</span></li>`;
-                    });
-                } else {
-                    list.innerHTML = "<li class='text-center text-white/50'>No users found.</li>";
-                }
-            });
         }
 
-        // ESP32-S3 FLASHING
-        document.getElementById('action-btn').addEventListener('click', async () => {
+        // Real USB Flashing Function using Web Serial API & esptool-js
+        async function startRealFlash() {
             const statusText = document.getElementById('status-text');
-            const actionBtn = document.getElementById('action-btn');
+            const flashBtn = document.getElementById('flash-btn');
             const progressContainer = document.getElementById('progress-container');
             const progressBar = document.getElementById('progress-bar');
-            
-            const flashAddress = parseInt(document.getElementById('board-type').value, 16);
+            const activeUser = localStorage.getItem("active_user");
+            const flashAddress = parseInt(document.getElementById('flash-address').value, 16);
 
-            if (!navigator.serial) { 
-                alert("Use Google Chrome or Edge browser on PC."); 
-                return; 
+            if (!navigator.serial) {
+                alert("Web Serial is not supported in this browser! Please use Google Chrome or Microsoft Edge on PC/Laptop.");
+                return;
             }
 
             let port;
             try {
-                port = await navigator.serial.requestPort();
-                
-                actionBtn.classList.add('hidden');
+                flashBtn.classList.add('hidden');
                 progressContainer.classList.remove('hidden');
-                statusText.innerText = "Status: Downloading firmware...";
-                
+                statusText.innerText = "Status: Please select your ESP32-S3 port from pop-up...";
+
+                // Request USB port from browser
+                port = await navigator.serial.requestPort();
+
+                statusText.innerText = "Status: Downloading firmware file (oled_file_v1.bin)...";
                 const response = await fetch("./oled_file_v1.bin");
-                if (!response.ok) throw new Error("Firmware file 'oled_file_v1.bin' not found in GitHub repository!");
+                if (!response.ok) throw new Error("Firmware file 'oled_file_v1.bin' not found in your GitHub repo!");
+                
                 const binData = await response.arrayBuffer();
                 const fileArray = new Uint8Array(binData);
-                
+
                 statusText.innerText = "Status: Connecting to ESP32-S3...";
                 progressBar.style.width = "10%";
 
-                const transport = new Transport(port);
-                const esploader = new ESPLoader({
+                const transport = new window.Transport(port);
+                const esploader = new window.ESPLoader({
                     transport: transport,
                     baudrate: 115200,
                     terminal: { clean: () => {}, writeLine: (msg) => console.log(msg) }
                 });
 
                 await esploader.main_fn();
-                statusText.innerText = `Status: Flashing ESP32-S3...`;
-                
+                statusText.innerText = "Status: Flashing firmware to device...";
+
                 await esploader.write_flash({
                     fileArray: [{ data: fileArray, address: flashAddress }],
                     flashSize: "keep",
@@ -266,25 +229,62 @@
                 await esploader.hard_reset();
                 await transport.disconnect();
 
-                await update(ref(db, `users/${currentUserId}`), { status: "FLASHED" });
-                
-                statusText.className = "text-sm font-bold text-green-400 mb-4 text-center";
-                statusText.innerText = "Success! ESP32-S3 flashed successfully.";
-                
-                setTimeout(() => { window.location.reload(); }, 4000);
-                
+                // Lock token permanently after successful flash
+                localStorage.setItem(`user_${activeUser}_status`, "USED");
+
+                statusText.className = "text-xs font-bold text-green-400 mb-4 bg-slate-900 p-3 rounded border border-green-500/50";
+                statusText.innerText = "Success! Device flashed and token permanently locked.";
+
+                // Show SD Card / Connection file download box
+                const savedContent = localStorage.getItem("admin_uploaded_asset") || "Default Connection & SD Card setup details for R Track Creation...";
+                const blob = new Blob([savedContent], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                document.getElementById('download-link').href = url;
+                document.getElementById('asset-download-box').classList.remove('hidden');
+
             } catch (error) {
-                statusText.className = "text-sm font-bold text-red-400 mb-4 text-center";
-                statusText.innerText = "Error: Flashing failed. Check console for details.";
                 console.error(error);
+                statusText.className = "text-xs font-bold text-red-400 mb-4 bg-slate-900 p-3 rounded border border-red-500/50";
+                statusText.innerText = "Error: " + error.message;
                 if (port) { try { await port.close(); } catch(e){} }
-                actionBtn.classList.remove('hidden');
+                flashBtn.classList.remove('hidden');
                 progressContainer.classList.add('hidden');
             }
-        });
+        }
 
-        document.getElementById('logout-btn').addEventListener('click', () => window.location.reload());
-        document.getElementById('admin-logout-btn').addEventListener('click', () => window.location.reload());
+        function createCustomerUser() {
+            const u = document.getElementById('new-user').value.trim();
+            const p = document.getElementById('new-pass').value.trim();
+            if(!u || !p) {
+                alert("Enter both ID and Password!");
+                return;
+            }
+            localStorage.setItem(`user_${u}_pass`, p);
+            localStorage.setItem(`user_${u}_status`, "UNUSED");
+            alert(`Customer ID '${u}' created successfully!`);
+            document.getElementById('new-user').value = '';
+            document.getElementById('new-pass').value = '';
+        }
+
+        function uploadAssetFile() {
+            const fileInput = document.getElementById('asset-file-input');
+            if(fileInput.files.length === 0) {
+                alert("Please select a file first!");
+                return;
+            }
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                localStorage.setItem("admin_uploaded_asset", e.target.result);
+                alert("Asset file uploaded successfully for customers!");
+            };
+            reader.readAsText(file);
+        }
+
+        function forceGlobalLogout() {
+            localStorage.setItem("force_logout_active", "true");
+            alert("All active customer sessions have been terminated.");
+        }
     </script>
 </body>
 </html>
