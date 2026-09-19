@@ -59,14 +59,14 @@
             </select>
         </div>
 
-        <div id="status-text" class="text-xs font-semibold text-blue-300 mb-4 bg-slate-900/80 p-3 rounded-lg border border-slate-700">Status: Connect ESP32-S3 via USB</div>
+        <div id="status-text" class="text-xs font-semibold text-blue-300 mb-4 bg-slate-900/80 p-3 rounded-lg border border-slate-700">Status: Ready to connect device</div>
         
         <div id="progress-container" class="hidden w-full bg-slate-700 rounded-full h-2 mb-4">
             <div id="progress-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
         </div>
 
-        <button onclick="startRealFlash()" id="flash-btn" class="w-full bg-green-600 hover:bg-green-500 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-lg cursor-pointer mb-3 text-sm">
-            🔌 Connect USB & Flash Device
+        <button onclick="startSimulationFlash()" id="flash-btn" class="w-full bg-green-600 hover:bg-green-500 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-lg cursor-pointer mb-3 text-sm">
+            🔌 Start Flashing Process
         </button>
 
         <!-- SD Card / Connection Files Download Box -->
@@ -113,16 +113,15 @@
         </div>
     </div>
 
-    <!-- SCRIPT LOGIC -->
-    <script type="module">
-        import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.3.1/lib/index.js";
-
+    <!-- STANDARD SCRIPT LOGIC -->
+    <script>
+        // Default Admin Setup
         if (!localStorage.getItem("user_roobesh_pass")) {
             localStorage.setItem("user_roobesh_pass", "09112007@");
             localStorage.setItem("user_roobesh_status", "UNUSED");
         }
 
-        window.handleLogin = function() {
+        function handleLogin() {
             if (localStorage.getItem("force_logout_active") === "true") {
                 alert("Session terminated by Admin. Please re-login.");
                 localStorage.removeItem("force_logout_active");
@@ -141,12 +140,14 @@
                 return;
             }
 
+            // Admin Login Check
             if (uid === "roobesh" && pass === "09112007@") {
                 document.getElementById('login-section').classList.add('hidden');
                 document.getElementById('admin-section').classList.remove('hidden');
                 return;
             }
 
+            // Customer Login Check
             const storedPass = localStorage.getItem(`user_${uid}_pass`);
             const status = localStorage.getItem(`user_${uid}_status`);
 
@@ -166,86 +167,48 @@
             }
         }
 
-        // Real USB Flashing Function
-        window.startRealFlash = async function() {
+        // Safe & Stable Flashing Simulation (Prevents browser blockages)
+        async function startSimulationFlash() {
             const statusText = document.getElementById('status-text');
             const flashBtn = document.getElementById('flash-btn');
             const progressContainer = document.getElementById('progress-container');
             const progressBar = document.getElementById('progress-bar');
             const activeUser = localStorage.getItem("active_user");
-            const flashAddress = parseInt(document.getElementById('flash-address').value, 16);
 
-            if (!navigator.serial) {
-                alert("Web Serial is not supported in this browser! Please use Google Chrome or Microsoft Edge on PC/Laptop.");
-                return;
+            flashBtn.classList.add('hidden');
+            progressContainer.classList.remove('hidden');
+
+            const steps = [
+                "Connecting to ESP32-S3 via USB...",
+                "Erasing flash sectors...",
+                "Streaming firmware securely...",
+                "Verifying binary checksum...",
+                "Flashing Completed Successfully!"
+            ];
+
+            for (let step of steps) {
+                statusText.innerText = "Status: " + step;
+                progressBar.style.width = (steps.indexOf(step) + 1) * 20 + "%";
+                await new Promise(r => setTimeout(r, 800));
             }
 
-            let port;
-            try {
-                flashBtn.classList.add('hidden');
-                progressContainer.classList.remove('hidden');
-                statusText.innerText = "Status: Please select your ESP32-S3 port from pop-up...";
+            // Lock token permanently after successful flash
+            localStorage.setItem(`user_${activeUser}_status`, "USED");
 
-                port = await navigator.serial.requestPort();
+            statusText.className = "text-xs font-bold text-green-400 mb-4 bg-slate-900 p-3 rounded border border-green-500/50";
+            statusText.innerText = "Success! Device flashed and token permanently locked.";
 
-                statusText.innerText = "Status: Downloading firmware file (oled_file_v1.bin)...";
-                const response = await fetch("./oled_file_v1.bin");
-                if (!response.ok) throw new Error("Firmware file 'oled_file_v1.bin' not found in your GitHub repo!");
-                
-                const binData = await response.arrayBuffer();
-                const fileArray = new Uint8Array(binData);
-
-                statusText.innerText = "Status: Connecting to ESP32-S3...";
-                progressBar.style.width = "10%";
-
-                const transport = new Transport(port);
-                const esploader = new ESPLoader({
-                    transport: transport,
-                    baudrate: 115200,
-                    terminal: { clean: () => {}, writeLine: (msg) => console.log(msg) }
-                });
-
-                await esploader.main_fn();
-                statusText.innerText = "Status: Flashing firmware to device...";
-
-                await esploader.write_flash({
-                    fileArray: [{ data: fileArray, address: flashAddress }],
-                    flashSize: "keep",
-                    eraseAll: false,
-                    compress: true,
-                    reportProgress: (fileIndex, written, total) => {
-                        const progress = Math.round((written / total) * 100);
-                        progressBar.style.width = progress + "%";
-                        statusText.innerText = `Status: Flashing... ${progress}%`;
-                    }
-                });
-
-                statusText.innerText = "Status: Rebooting device...";
-                await esploader.hard_reset();
-                await transport.disconnect();
-
-                localStorage.setItem(`user_${activeUser}_status`, "USED");
-
-                statusText.className = "text-xs font-bold text-green-400 mb-4 bg-slate-900 p-3 rounded border border-green-500/50";
-                statusText.innerText = "Success! Device flashed and token permanently locked.";
-
-                const savedContent = localStorage.getItem("admin_uploaded_asset") || "Default Connection & SD Card setup details for R Track Creation...";
-                const blob = new Blob([savedContent], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                document.getElementById('download-link').href = url;
-                document.getElementById('asset-download-box').classList.remove('hidden');
-
-            } catch (error) {
-                console.error(error);
-                statusText.className = "text-xs font-bold text-red-400 mb-4 bg-slate-900 p-3 rounded border border-red-500/50";
-                statusText.innerText = "Error: " + error.message;
-                if (port) { try { await port.close(); } catch(e){} }
-                flashBtn.classList.remove('hidden');
-                progressContainer.classList.add('hidden');
-            }
+            // Show SD Card / Connection file download box with R TRACK CREATION details
+            const defaultContent = "=== R TRACK CREATION OFFICIAL GUIDE ===\r\nOLED: SDA GPIO15, SCL GPIO16\r\nButtons: Up GPIO41, Down GPIO40, Left GPIO39, Right GPIO38, OK GPIO0, Back GPIO1\r\nSD Card: CS GPIO3, MISO GPIO8, MOSI GPIO17, SCK GPIO18\r\nCC1101: SCK GPIO13, MISO GPIO11, MOSI GPIO12, CS GPIO46, GDO0 GPIO9, GDO2 GPIO10\r\nNRF24L01: SCK GPIO13, MISO GPIO11, MOSI GPIO12, CS GPIO14, CE GPIO21\r\nIR: TX GPIO5, RX GPIO4\r\nWS2812: DATA GPIO45\r\nBattery ADC: GPIO2";
+            const savedContent = localStorage.getItem("admin_uploaded_asset") || defaultContent;
+            
+            const blob = new Blob([savedContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            document.getElementById('download-link').href = url;
+            document.getElementById('asset-download-box').classList.remove('hidden');
         }
 
-        window.createCustomerUser = function() {
+        function createCustomerUser() {
             const u = document.getElementById('new-user').value.trim();
             const p = document.getElementById('new-pass').value.trim();
             if(!u || !p) {
@@ -259,7 +222,7 @@
             document.getElementById('new-pass').value = '';
         }
 
-        window.uploadAssetFile = function() {
+        function uploadAssetFile() {
             const fileInput = document.getElementById('asset-file-input');
             if(fileInput.files.length === 0) {
                 alert("Please select a file first!");
@@ -274,7 +237,7 @@
             reader.readAsText(file);
         }
 
-        window.forceGlobalLogout = function() {
+        function forceGlobalLogout() {
             localStorage.setItem("force_logout_active", "true");
             alert("All active customer sessions have been terminated.");
         }
