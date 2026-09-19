@@ -42,7 +42,7 @@
                 <label class="block text-xs text-white/60 mb-1">Password</label>
                 <input type="password" id="password" placeholder="Enter Password" class="w-full glass-input rounded-xl px-4 py-3 text-sm">
             </div>
-            <button id="login-btn" class="w-full glass-btn font-semibold py-3 px-4 rounded-xl text-sm mt-2">Sign In</button>
+            <button onclick="handleLogin()" class="w-full glass-btn font-semibold py-3 px-4 rounded-xl text-sm mt-2">Sign In</button>
         </div>
     </div>
 
@@ -65,7 +65,7 @@
             <div id="progress-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
         </div>
 
-        <button id="flash-btn" class="w-full bg-green-600 hover:bg-green-500 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-lg cursor-pointer mb-3 text-sm">
+        <button onclick="startRealFlash()" id="flash-btn" class="w-full bg-green-600 hover:bg-green-500 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-lg cursor-pointer mb-3 text-sm">
             🔌 Connect USB & Flash Device
         </button>
 
@@ -78,14 +78,14 @@
             </a>
         </div>
 
-        <button id="logout-btn" class="w-full bg-slate-800 hover:bg-slate-700 text-white/80 font-medium py-2.5 px-4 rounded-xl text-xs mt-3">Logout</button>
+        <button onclick="location.reload()" class="w-full bg-slate-800 hover:bg-slate-700 text-white/80 font-medium py-2.5 px-4 rounded-xl text-xs mt-3">Logout</button>
     </div>
 
     <!-- 3. ADMIN PANEL SECTION -->
     <div id="admin-section" class="hidden w-full max-w-lg glass-panel p-8 z-10 max-h-[85vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
             <h2 class="text-lg font-bold text-blue-400">R Track Creation Admin Panel</h2>
-            <button id="admin-logout-btn" class="text-xs bg-red-600/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg">Logout Admin</button>
+            <button onclick="location.reload()" class="text-xs bg-red-600/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg">Logout Admin</button>
         </div>
 
         <div class="space-y-4 text-xs">
@@ -94,36 +94,35 @@
                 <h3 class="font-semibold text-slate-200 mb-2">Create Customer Flash ID</h3>
                 <input type="text" id="new-user" placeholder="Customer ID" class="w-full glass-input rounded px-3 py-2 mb-2 text-xs">
                 <input type="password" id="new-pass" placeholder="Password" class="w-full glass-input rounded px-3 py-2 mb-2 text-xs">
-                <button id="create-user-btn" class="w-full bg-blue-600 hover:bg-blue-500 font-semibold py-2 rounded">Generate & Save ID</button>
+                <button onclick="createCustomerUser()" class="w-full bg-blue-600 hover:bg-blue-500 font-semibold py-2 rounded">Generate & Save ID</button>
             </div>
 
             <!-- Upload SD Card / Connection Files -->
             <div class="bg-white/5 p-4 rounded-xl border border-white/10">
                 <h3 class="font-semibold text-slate-200 mb-2">Upload SD Card / Connection File (ZIP / PDF / TXT)</h3>
                 <input type="file" id="asset-file-input" class="w-full text-slate-400 mb-2 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500">
-                <button id="upload-asset-btn" class="w-full bg-green-600 hover:bg-green-500 font-semibold py-2 rounded">Save & Upload Asset</button>
+                <button onclick="uploadAssetFile()" class="w-full bg-green-600 hover:bg-green-500 font-semibold py-2 rounded">Save & Upload Asset</button>
             </div>
 
             <!-- Force Logout Control -->
             <div class="bg-white/5 p-4 rounded-xl border border-white/10">
                 <h3 class="font-semibold text-slate-200 mb-2">Active Session Management</h3>
                 <p class="text-slate-400 mb-2">Force-terminate all customer sessions immediately.</p>
-                <button id="force-logout-btn" class="w-full bg-red-600 hover:bg-red-500 font-semibold py-2 rounded">Force Logout All Users</button>
+                <button onclick="forceGlobalLogout()" class="w-full bg-red-600 hover:bg-red-500 font-semibold py-2 rounded">Force Logout All Users</button>
             </div>
         </div>
     </div>
 
-    <!-- SECURE EMBEDDED MODULE LOGIC -->
-    <script type="module">
-        import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.3.1/lib/index.js";
+    <!-- FIXED FLASHER LIBRARY SCRIPT (ESPTerminal & Safe Wrapper) -->
+    <script src="https://unpkg.com/esptool-js@0.3.1/bundle.js"></script>
 
+    <script>
         if (!localStorage.getItem("user_roobesh_pass")) {
             localStorage.setItem("user_roobesh_pass", "09112007@");
             localStorage.setItem("user_roobesh_status", "UNUSED");
         }
 
-        // Login Handler
-        document.getElementById('login-btn').addEventListener('click', () => {
+        function handleLogin() {
             if (localStorage.getItem("force_logout_active") === "true") {
                 alert("Session terminated by Admin. Please re-login.");
                 localStorage.removeItem("force_logout_active");
@@ -167,10 +166,9 @@
                 errorMsg.innerText = "Invalid ID or Password!";
                 errorMsg.classList.remove('hidden');
             }
-        });
+        }
 
-        // Flash Handler
-        document.getElementById('flash-btn').addEventListener('click', async () => {
+        async function startRealFlash() {
             const statusText = document.getElementById('status-text');
             const flashBtn = document.getElementById('flash-btn');
             const progressContainer = document.getElementById('progress-container');
@@ -201,11 +199,12 @@
                 statusText.innerText = "Status: Connecting to ESP32-S3...";
                 progressBar.style.width = "10%";
 
-                const transport = new Transport(port);
-                const esploader = new ESPLoader({
+                // Using ESptool bundle classes safely
+                const transport = new ESPTool.Transport(port);
+                const esploader = new ESPTool.ESPLoader({
                     transport: transport,
                     baudrate: 115200,
-                    terminal: { clean: () => {}, writeLine: (msg) => console.log(msg) }
+                    terminal: { clean: () => {}, writeLine: (msg) => console.log(msg), write: (msg) => {} }
                 });
 
                 await esploader.main_fn();
@@ -255,10 +254,9 @@
                 flashBtn.classList.remove('hidden');
                 progressContainer.classList.add('hidden');
             }
-        });
+        }
 
-        // Admin Actions
-        document.getElementById('create-user-btn').addEventListener('click', () => {
+        function createCustomerUser() {
             const u = document.getElementById('new-user').value.trim();
             const p = document.getElementById('new-pass').value.trim();
             if(!u || !p) {
@@ -270,9 +268,9 @@
             alert(`Customer ID '${u}' created successfully!`);
             document.getElementById('new-user').value = '';
             document.getElementById('new-pass').value = '';
-        });
+        }
 
-        document.getElementById('upload-asset-btn').addEventListener('click', () => {
+        function uploadAssetFile() {
             const fileInput = document.getElementById('asset-file-input');
             if(fileInput.files.length === 0) {
                 alert("Please select a file first!");
@@ -288,15 +286,12 @@
             };
             
             reader.readAsDataURL(file);
-        });
+        }
 
-        document.getElementById('force-logout-btn').addEventListener('click', () => {
+        function forceGlobalLogout() {
             localStorage.setItem("force_logout_active", "true");
             alert("All active customer sessions have been terminated.");
-        });
-
-        document.getElementById('logout-btn').addEventListener('click', () => location.reload());
-        document.getElementById('admin-logout-btn').addEventListener('click', () => location.reload());
+        }
     </script>
 </body>
 </html>
