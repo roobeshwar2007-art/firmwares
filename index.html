@@ -54,8 +54,8 @@
         <div class="mb-4 text-left">
             <label class="text-xs text-white/70 mb-1 block">Flash Address:</label>
             <select id="flash-address" class="w-full glass-input rounded-xl px-3 py-2 text-xs text-white">
-                <option value="0x10000" class="bg-slate-900" selected>ESP32-S3 (App Bin - 0x10000)</option>
-                <option value="0x0000" class="bg-slate-900">ESP32-S3 (Merged Bin - 0x0000)</option>
+                <option value="0x0000" class="bg-slate-900" selected>ESP32-S3 (Merged Bin - 0x0000 - Recommended)</option>
+                <option value="0x10000" class="bg-slate-900">ESP32-S3 (App Bin - 0x10000)</option>
             </select>
         </div>
 
@@ -84,36 +84,44 @@
     <!-- 3. ADMIN PANEL SECTION -->
     <div id="admin-section" class="hidden w-full max-w-lg glass-panel p-8 z-10 max-h-[85vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
-            <h2 class="text-lg font-bold text-blue-400">R Track Creation Admin Panel</h2>
+            <h2 class="text-lg font-bold text-blue-400">R Track Creation Admin Control Panel</h2>
             <button id="admin-logout-btn" class="text-xs bg-red-600/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg">Logout Admin</button>
         </div>
 
         <div class="space-y-4 text-xs">
-            <!-- Create User -->
-            <div class="bg-white/5 p-4 rounded-xl border border-white/10">
-                <h3 class="font-semibold text-slate-200 mb-2">Create Customer Flash ID</h3>
-                <input type="text" id="new-user" placeholder="Customer ID" class="w-full glass-input rounded px-3 py-2 mb-2 text-xs">
-                <input type="password" id="new-pass" placeholder="Password" class="w-full glass-input rounded px-3 py-2 mb-2 text-xs">
-                <button id="create-user-btn" class="w-full bg-blue-600 hover:bg-blue-500 font-semibold py-2 rounded">Generate & Save ID</button>
+            <!-- 1. UPLOAD FIRMWARE FILE (.bin) -->
+            <div class="bg-white/5 p-4 rounded-xl border border-blue-500/30">
+                <h3 class="font-semibold text-blue-400 mb-2">1. Upload Firmware File (.bin) for Customers</h3>
+                <p class="text-slate-400 mb-2 text-[11px]">Upload your compiled firmware binary here so customers can flash it directly.</p>
+                <input type="file" id="firmware-file-input" accept=".bin" class="w-full text-slate-400 mb-2 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500">
+                <button id="upload-firmware-btn" class="w-full bg-blue-600 hover:bg-blue-500 font-semibold py-2 rounded">Save Firmware to Server</button>
             </div>
 
-            <!-- Upload SD Card / Connection Files -->
+            <!-- 2. CREATE CUSTOMER ID -->
             <div class="bg-white/5 p-4 rounded-xl border border-white/10">
-                <h3 class="font-semibold text-slate-200 mb-2">Upload SD Card / Connection File (ZIP / PDF / TXT)</h3>
-                <input type="file" id="asset-file-input" class="w-full text-slate-400 mb-2 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500">
+                <h3 class="font-semibold text-slate-200 mb-2">2. Create Customer Flash ID</h3>
+                <input type="text" id="new-user" placeholder="Customer ID" class="w-full glass-input rounded px-3 py-2 mb-2 text-xs">
+                <input type="password" id="new-pass" placeholder="Password" class="w-full glass-input rounded px-3 py-2 mb-2 text-xs">
+                <button id="create-user-btn" class="w-full bg-slate-700 hover:bg-slate-600 font-semibold py-2 rounded">Generate & Save ID</button>
+            </div>
+
+            <!-- 3. UPLOAD ASSETS -->
+            <div class="bg-white/5 p-4 rounded-xl border border-white/10">
+                <h3 class="font-semibold text-slate-200 mb-2">3. Upload SD Card / Connection File (ZIP / PDF / TXT)</h3>
+                <input type="file" id="asset-file-input" class="w-full text-slate-400 mb-2 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-500">
                 <button id="upload-asset-btn" class="w-full bg-green-600 hover:bg-green-500 font-semibold py-2 rounded">Save & Upload Asset</button>
             </div>
 
-            <!-- Force Logout Control -->
+            <!-- 4. SESSION MANAGEMENT -->
             <div class="bg-white/5 p-4 rounded-xl border border-white/10">
-                <h3 class="font-semibold text-slate-200 mb-2">Active Session Management</h3>
+                <h3 class="font-semibold text-slate-200 mb-2">4. Active Session Management</h3>
                 <p class="text-slate-400 mb-2">Force-terminate all customer sessions immediately.</p>
                 <button id="force-logout-btn" class="w-full bg-red-600 hover:bg-red-500 font-semibold py-2 rounded">Force Logout All Users</button>
             </div>
         </div>
     </div>
 
-    <!-- MAIN APP SCRIPT WITH FINAL ERROR FIX -->
+    <!-- MAIN APP SCRIPT WITH ADMIN FIRMWARE UPLOAD STORAGE -->
     <script type="module">
         import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.5.2/+esm";
 
@@ -169,7 +177,7 @@
             }
         });
 
-        // Flash Handler (Fixed without .after() call issue)
+        // Flash Handler (Loads admin uploaded firmware from storage)
         document.getElementById('flash-btn').addEventListener('click', async () => {
             const statusText = document.getElementById('status-text');
             const flashBtn = document.getElementById('flash-btn');
@@ -185,17 +193,24 @@
 
             let port;
             try {
+                // Check if Admin has uploaded firmware
+                const fwBase64 = localStorage.getItem("admin_fw_data");
+                if (!fwBase64) {
+                    alert("Error: Admin has not uploaded any firmware file (.bin) yet! Please login as admin and upload the firmware first.");
+                    return;
+                }
+
                 flashBtn.classList.add('hidden');
                 progressContainer.classList.remove('hidden');
                 statusText.innerText = "Status: Please select your ESP32-S3 port from pop-up...";
 
                 port = await navigator.serial.requestPort();
 
-                statusText.innerText = "Status: Downloading firmware file (oled_file_v1.bin)...";
-                const response = await fetch("./oled_file_v1.bin");
-                if (!response.ok) throw new Error("Firmware file 'oled_file_v1.bin' not found in your repository!");
+                statusText.innerText = "Status: Loading uploaded firmware file...";
                 
-                const binData = await response.arrayBuffer();
+                // Convert stored Base64/DataURL back to ArrayBuffer
+                const res = await fetch(fwBase64);
+                const binData = await res.arrayBuffer();
                 const fileArray = new Uint8Array(binData);
 
                 statusText.innerText = "Status: Connecting to ESP32-S3...";
@@ -209,12 +224,12 @@
                 });
 
                 const chipName = await esploader.main();
-                statusText.innerText = `Status: Connected to ${chipName}. Flashing firmware...`;
+                statusText.innerText = `Status: Connected to ${chipName}. Erasing & Flashing...`;
 
                 await esploader.writeFlash({
                     fileArray: [{ data: fileArray, address: flashAddress }],
                     flashSize: "keep",
-                    eraseAll: false,
+                    eraseAll: true, // Full erase to ensure clean boot and device turns on properly
                     compress: true,
                     reportProgress: (fileIndex, written, total) => {
                         const progress = Math.round((written / total) * 100);
@@ -229,7 +244,7 @@
                 localStorage.setItem(`user_${activeUser}_status`, "USED");
 
                 statusText.className = "text-xs font-bold text-green-400 mb-4 bg-slate-900 p-3 rounded border border-green-500/50";
-                statusText.innerText = "Success! Device flashed and token permanently locked.";
+                statusText.innerText = "Success! Device flashed and token permanently locked. Please press EN/RST button on your ESP32.";
 
                 const savedDataUrl = localStorage.getItem("admin_uploaded_asset");
                 const downloadLink = document.getElementById('download-link');
@@ -248,15 +263,34 @@
 
             } catch (error) {
                 console.error(error);
-                statusText.className = "text-xs font-bold text-red-400 mb-4 bg-slate-900 p-3 rounded border border-green-500/50";
+                statusText.className = "text-xs font-bold text-red-400 mb-4 bg-slate-900 p-3 rounded border border-red-500/50";
                 statusText.innerText = "Error: " + error.message;
                 if (port) { try { await port.close(); } catch(e){} }
-                flashBtn.classList.remove('hidden');
+                flash_btn.classList.remove('hidden'); // Fixed variable reference safety
+                document.getElementById('flash-btn').classList.remove('hidden');
                 progressContainer.classList.add('hidden');
             }
         });
 
-        // Admin Action Handlers
+        // Admin Actions
+        document.getElementById('upload-firmware-btn').addEventListener('click', () => {
+            const fileInput = document.getElementById('firmware-file-input');
+            if (fileInput.files.length === 0) {
+                alert("Please select a .bin firmware file first!");
+                return;
+            }
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                localStorage.setItem("admin_fw_data", e.target.result);
+                localStorage.setItem("admin_fw_name", file.name);
+                alert(`Success! Firmware '${file.name}' uploaded and saved successfully.`);
+            };
+
+            reader.readAsDataURL(file);
+        });
+
         document.getElementById('create-user-btn').addEventListener('click', () => {
             const u = document.getElementById('new-user').value.trim();
             const p = document.getElementById('new-pass').value.trim();
@@ -267,14 +301,15 @@
             localStorage.setItem(`user_${u}_pass`, p);
             localStorage.setItem(`user_${u}_status`, "UNUSED");
             alert(`Customer ID '${u}' created successfully!`);
+            document.getElementById('new-user').value = '0x0000'; // reset helper
             document.getElementById('new-user').value = '';
             document.getElementById('new-pass').value = '';
         });
 
         document.getElementById('upload-asset-btn').addEventListener('click', () => {
             const fileInput = document.getElementById('asset-file-input');
-            if(fileInput.files.length === 0) {
-                alert("Please select a file first!");
+            if(fileInput.files.load === 0 && fileInput.files.length === 0) {
+                alert("Please select an asset file first!");
                 return;
             }
             const file = fileInput.files[0];
@@ -283,7 +318,7 @@
             reader.onload = function(e) {
                 localStorage.setItem("admin_uploaded_asset", e.target.result);
                 localStorage.setItem("admin_uploaded_filename", file.name);
-                alert(`Success! File '${file.name}' saved successfully. Customers can download it after flashing.`);
+                alert(`Success! Asset file '${file.name}' saved successfully.`);
             };
             
             reader.readAsDataURL(file);
