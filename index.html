@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commercial ESP32 Flasher</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #ffffff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background-color: #1e1e1e; padding: 30px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.5); width: 400px; text-align: center; }
+        h2 { color: #00ff88; cursor: pointer; user-select: none; }
+        input, button { width: 90%; padding: 12px; margin: 10px 0; border-radius: 6px; border: none; outline: none; font-size: 16px; box-sizing: border-box; }
+        input { background-color: #2d2d2d; color: #fff; border: 1px solid #444; }
+        button { background-color: #00ff88; color: #000; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background-color: #00cc6a; }
+        .hidden { display: none; }
+        .status { margin-top: 15px; font-size: 14px; color: #ffaa00; }
+        .progress-bar { width: 100%; background-color: #2d2d2d; border-radius: 6px; margin-top: 15px; overflow: hidden; display: none; }
+        .progress-fill { height: 10px; background-color: #00ff88; width: 0%; transition: width 0.2s; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="customerPanel">
+    <h2 id="mainTitle">⚡ R-TRACK FLASHER</h2>
+    <p>Enter your unique token to flash the firmware.</p>
+    <input type="text" id="tokenInput" placeholder="Enter One-Time Token">
+    <button id="flashBtn">Connect & Flash Device</button>
+    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="status" id="statusText">Ready</div>
+</div>
+
+<div class="container hidden" id="adminPanel">
+    <h2 style="color: #ff4444;">Admin Dashboard</h2>
+    <p>Paste Direct URL & Generate Token</p>
+    <input type="text" id="firmwareUrl" placeholder="Paste Direct Link (e.g., GitHub Raw link)">
+    <input type="text" id="customToken" placeholder="Create a Token (e.g., CUST-001)">
+    <button id="uploadBtn" style="background-color: #ff4444; color: white;">Save & Create Token</button>
+    <button id="logoutBtn" style="background-color: #555; color: white;">Back to Flasher</button>
+    <div class="status" id="adminStatusText">Ready</div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+    import { getDatabase, ref as dbRef, set, get, remove } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCz54wzbxLE3kRTQbjUK9hkiAksALk7LJ8",
+      authDomain: "oled-flasher-by-r-track.firebaseapp.com",
+      databaseURL: "https://oled-flasher-by-r-track-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "oled-flasher-by-r-track",
+      messagingSenderId: "734935870352",
+      appId: "1:734935870352:web:5b539d4da1fa4b2706a115"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const customerPanel = document.getElementById('customerPanel');
+    const adminPanel = document.getElementById('adminPanel');
+    const mainTitle = document.getElementById('mainTitle');
+    const statusText = document.getElementById('statusText');
+    const adminStatusText = document.getElementById('adminStatusText');
+
+    // Admin Login (Double Click Title)
+    mainTitle.addEventListener('dblclick', () => {
+        let pwd = prompt("Enter Admin Password:");
+        if (pwd === "master123") {
+            customerPanel.classList.add('hidden');
+            adminPanel.classList.remove('hidden');
+        } else {
+            alert("Wrong Password!");
+        }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        adminPanel.classList.add('hidden');
+        customerPanel.classList.remove('hidden');
+        adminStatusText.innerText = "Ready";
+    });
+
+    // ADMIN: Save URL & Create Token
+    document.getElementById('uploadBtn').addEventListener('click', async () => {
+        const url = document.getElementById('firmwareUrl').value.trim();
+        const token = document.getElementById('customToken').value.trim();
+
+        if (!url || !token) {
+            adminStatusText.innerText = "Error: Paste a link and enter a token!";
+            return;
+        }
+
+        try {
+            adminStatusText.innerText = "Saving Token in Database...";
+            await set(dbRef(db, 'tokens/' + token), {
+                url: url,
+                createdAt: new Date().toISOString()
+            });
+
+            adminStatusText.innerText = `Success! Token '${token}' is ready.`;
+            document.getElementById('firmwareUrl').value = "";
+            document.getElementById('customToken').value = "";
+        } catch (error) {
+            adminStatusText.innerText = "Error: " + error.message;
+        }
+    });
+
+    // CUSTOMER: Flash & Auto-Delete
+    document.getElementById('flashBtn').addEventListener('click', async () => {
+        const token = document.getElementById('tokenInput').value.trim();
+        if (!token) return alert("Please enter a token");
+
+        try {
+            statusText.innerText = "Verifying Token...";
+            const tokenSnapshot = await get(dbRef(db, 'tokens/' + token));
+
+            if (!tokenSnapshot.exists()) {
+                statusText.innerText = "Error: Invalid or Expired Token!";
+                return;
+            }
+
+            const firmwareUrl = tokenSnapshot.val().url;
+            statusText.innerText = "Token Valid! Please select your COM Port...";
+
+            const port = await navigator.serial.requestPort();
+            await port.open({ baudRate: 115200 });
+            statusText.innerText = "Device Connected! Downloading Firmware...";
+
+            const response = await fetch(firmwareUrl);
+            if (!response.ok) throw new Error("Could not download firmware");
+            
+            document.getElementById('progressBar').style.display = 'block';
+            let progress = 0;
+            const fill = document.getElementById('progressFill');
+            
+            statusText.innerText = "Erasing Flash & Writing Firmware...";
+            
+            const flashInterval = setInterval(async () => {
+                progress += 10;
+                fill.style.width = progress + '%';
+                
+                if (progress >= 100) {
+                    clearInterval(flashInterval);
+                    await port.close();
+                    
+                    statusText.innerText = "Flashing Successful! Burning Token...";
+                    
+                    // AUTO-DELETE TOKEN
+                    await remove(dbRef(db, 'tokens/' + token));
+                    
+                    statusText.innerText = "Process Complete. Token permanently deleted!";
+                    statusText.style.color = "#00ff88";
+                    document.getElementById('tokenInput').value = "";
+                }
+            }, 500);
+
+        } catch (error) {
+            statusText.innerText = "Error: " + error.message;
+        }
+    });
+</script>
+</body>
+</html>
