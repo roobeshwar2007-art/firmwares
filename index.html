@@ -3,128 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Apple Glass Firmware Flasher</title>
+    <title>ESP32-S3 Secure Flasher</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ESPTOOL-JS க்கான Crypto லைப்ரரி (மிக முக்கியம்) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow-x: hidden; margin: 0; background-color: #1a1a1a; }
         .hidden { display: none !important; }
-        
-        /* Apple Glassmorphism Effect */
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-            border-radius: 24px;
-        }
-        
-        .glass-input {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            color: white;
-        }
-        
+        .glass-panel { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); border-radius: 24px; }
+        .glass-input { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); color: white; }
         .glass-input::placeholder { color: rgba(255, 255, 255, 0.5); }
         .glass-input:focus { border-color: rgba(255, 255, 255, 0.5); outline: none; background: rgba(255, 255, 255, 0.1); }
-        
-        .glass-btn {
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            transition: all 0.3s ease;
-        }
+        .glass-btn { background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); transition: all 0.3s ease; }
         .glass-btn:hover { background: rgba(255, 255, 255, 0.3); transform: translateY(-2px); }
-        
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 10px; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
 
-    <!-- Background Video (Ensure bg-video.mp4 is uploaded to your repo) -->
+    <!-- Background Video -->
     <video autoplay loop muted playsinline class="fixed top-0 left-0 w-full h-full object-cover z-[-1]">
         <source src="./bg-video.mp4" type="video/mp4">
     </video>
-
-    <!-- Dark Overlay to make text readable -->
     <div class="fixed top-0 left-0 w-full h-full bg-black/40 z-[-1]"></div>
 
     <!-- Header -->
     <div class="mb-8 text-center z-10">
-        <h1 class="text-4xl font-extrabold tracking-tight text-white drop-shadow-lg">
-            R TRACK CREATION
-        </h1>
-        <p class="text-white/70 text-sm mt-2 tracking-widest uppercase">Secure Device Flasher</p>
+        <h1 class="text-4xl font-extrabold tracking-tight text-white drop-shadow-lg">R TRACK CREATION</h1>
+        <p class="text-white/70 text-sm mt-2 tracking-widest uppercase">ESP32-S3 Secure Flasher</p>
     </div>
 
     <!-- 1. LOGIN SECTION -->
     <div id="login-section" class="w-full max-w-md glass-panel p-8 z-10 transition-all duration-500">
         <h2 class="text-2xl font-semibold mb-6 text-center">Portal Login</h2>
         <div id="error-msg" class="hidden bg-red-500/30 border border-red-500/50 rounded-xl p-3 mb-4 text-sm text-center backdrop-blur-md"></div>
-        
         <div class="space-y-4">
-            <div>
-                <input type="text" id="userid" placeholder="Enter ID" class="w-full glass-input rounded-xl px-4 py-3">
-            </div>
-            <div>
-                <input type="password" id="password" placeholder="Enter Password" class="w-full glass-input rounded-xl px-4 py-3">
-            </div>
-            <button id="login-btn" class="w-full glass-btn font-semibold py-3 px-4 rounded-xl mt-4">
-                Sign In
-            </button>
+            <input type="text" id="userid" placeholder="Enter ID" class="w-full glass-input rounded-xl px-4 py-3">
+            <input type="password" id="password" placeholder="Enter Password" class="w-full glass-input rounded-xl px-4 py-3">
+            <button id="login-btn" class="w-full glass-btn font-semibold py-3 px-4 rounded-xl mt-4">Sign In</button>
         </div>
     </div>
 
     <!-- 2. CUSTOMER FLASH SECTION -->
     <div id="flash-section" class="hidden w-full max-w-md glass-panel p-8 z-10">
         <div class="text-center mb-6">
-            <h2 class="text-2xl font-semibold">Ready to Flash</h2>
+            <h2 class="text-2xl font-semibold">Ready to Flash ESP32-S3</h2>
             <p class="text-white/70 text-sm mt-1">Logged in as: <span id="display-id" class="font-bold text-white"></span></p>
         </div>
 
-        <div id="status-text" class="text-sm font-medium text-blue-300 mb-4 text-center">Status: Connect your device via USB to begin</div>
+        <!-- ESP32-S3 Board Selection -->
+        <div class="mb-4 text-left">
+            <label class="text-xs text-white/70 mb-1 block">Select Firmware Type:</label>
+            <select id="board-type" class="w-full glass-input rounded-xl px-3 py-2 text-sm text-black">
+                <option value="0x10000" class="text-black" selected>ESP32-S3 (App Bin - 0x10000)</option>
+                <option value="0x0000" class="text-black">ESP32-S3 (Merged Bin - 0x0000)</option>
+            </select>
+        </div>
+
+        <div id="status-text" class="text-sm font-medium text-blue-300 mb-4 text-center">Status: Connect ESP32-S3 via USB</div>
         
-        <div id="progress-container" class="hidden w-full bg-white/10 rounded-full h-2 mb-6 border border-white/20 relative overflow-hidden">
-            <div id="progress-bar" class="bg-white h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+        <div id="progress-container" class="hidden w-full bg-white/10 rounded-full h-3 mb-6 border border-white/20 relative overflow-hidden">
+            <div id="progress-bar" class="bg-blue-400 h-full rounded-full transition-all duration-200" style="width: 0%"></div>
         </div>
         
         <button id="action-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">
-            🔌 Connect & Flash
+            🔌 Connect & Flash ESP32-S3
         </button>
-        <button id="logout-btn" class="w-full glass-btn font-medium py-2 px-4 rounded-xl mt-4 text-sm text-white/80">
-            Logout
-        </button>
+        <button id="logout-btn" class="w-full glass-btn font-medium py-2 px-4 rounded-xl mt-4 text-sm text-white/80">Logout</button>
     </div>
 
     <!-- 3. ADMIN PANEL SECTION -->
     <div id="admin-section" class="hidden w-full max-w-lg glass-panel p-8 z-10 max-h-[90vh] overflow-y-auto">
         <h2 class="text-2xl font-semibold mb-6 text-center text-white">Admin Dashboard</h2>
-
-        <!-- Create User Section -->
         <div class="bg-white/5 p-5 rounded-2xl mb-6 border border-white/10">
-            <h3 class="text-sm font-semibold mb-3">1. Add New Customer</h3>
+            <h3 class="text-sm font-semibold mb-3">Add New Customer</h3>
             <div class="flex gap-2 mb-2">
                 <input type="text" id="new-userid" placeholder="User ID" class="w-1/2 glass-input rounded-xl px-3 py-2 text-sm">
                 <input type="text" id="new-password" placeholder="Password" class="w-1/2 glass-input rounded-xl px-3 py-2 text-sm">
             </div>
             <button id="add-user-btn" class="w-full glass-btn font-semibold py-2 px-4 rounded-xl text-sm">Create User</button>
         </div>
-
-        <!-- Users List (Track Status) -->
         <div class="bg-white/5 p-5 rounded-2xl mb-6 border border-white/10">
-            <h3 class="text-sm font-semibold mb-3">2. User Status Tracking</h3>
+            <h3 class="text-sm font-semibold mb-3">User Status Tracking</h3>
             <ul id="user-list" class="text-sm space-y-2 max-h-40 overflow-y-auto pr-2"></ul>
         </div>
-
-        <!-- Change Admin Password -->
-        <div class="bg-red-500/10 p-5 rounded-2xl mb-6 border border-red-500/30">
-            <h3 class="text-sm font-semibold mb-3 text-red-300">3. Security: Change Admin Password</h3>
-            <input type="text" id="new-admin-pass" placeholder="New Admin Password" class="w-full glass-input rounded-xl px-3 py-2 text-sm mb-3">
-            <button id="change-admin-btn" class="w-full bg-red-500/50 hover:bg-red-500 text-white font-semibold py-2 px-4 rounded-xl text-sm transition-all">Update Admin Password</button>
-        </div>
-
         <button id="admin-logout-btn" class="w-full glass-btn text-white/80 font-semibold py-2 px-4 rounded-xl text-sm">Logout Admin</button>
     </div>
 
@@ -132,6 +93,9 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getDatabase, ref, set, get, child, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+        
+        // Espressif Official ESPTool-JS
+        import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.3.1/lib/index.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCz54wzbxLE3kRTQbjUK9hkiAksALk7LJ8",
@@ -153,13 +117,9 @@
 
         // Init Admin
         async function initAdmin() {
-            const dbRef = ref(db);
-            const snapshot = await get(child(dbRef, `admin`));
-            if (snapshot.exists()) {
-                adminCreds = snapshot.val();
-            } else {
-                await set(ref(db, 'admin'), adminCreds);
-            }
+            const snapshot = await get(child(ref(db), `admin`));
+            if (snapshot.exists()) adminCreds = snapshot.val();
+            else await set(ref(db, 'admin'), adminCreds);
         }
         initAdmin();
 
@@ -167,160 +127,132 @@
         document.getElementById('login-btn').addEventListener('click', async () => {
             const uid = document.getElementById('userid').value.trim();
             const pass = document.getElementById('password').value.trim();
-            
-            if(!uid || !pass) { showError("Please enter ID and Password"); return; }
+            if(!uid || !pass) { showError("Enter ID and Password"); return; }
             document.getElementById('login-btn').innerText = "Authenticating...";
 
             try {
                 if(uid === adminCreds.id && pass === adminCreds.password) {
-                    loginSec.classList.add('hidden');
-                    adminSec.classList.remove('hidden');
-                    loadAdminData();
-                    return;
+                    loginSec.classList.add('hidden'); adminSec.classList.remove('hidden'); loadAdminData(); return;
                 }
-
-                const dbRef = ref(db);
-                const snapshot = await get(child(dbRef, `users/${uid}`));
-                
+                const snapshot = await get(child(ref(db), `users/${uid}`));
                 if (snapshot.exists() && snapshot.val().password === pass) {
-                    const userData = snapshot.val();
-                    if(userData.status === "FLASHED") {
-                        showError("Access Denied: You have already flashed the firmware.");
-                    } else {
-                        currentUserId = uid;
-                        document.getElementById('display-id').innerText = uid;
-                        errorMsg.classList.add('hidden');
-                        loginSec.classList.add('hidden');
-                        flashSec.classList.remove('hidden');
+                    if(snapshot.val().status === "FLASHED") { showError("Access Denied: Already flashed."); } 
+                    else {
+                        currentUserId = uid; document.getElementById('display-id').innerText = uid;
+                        errorMsg.classList.add('hidden'); loginSec.classList.add('hidden'); flashSec.classList.remove('hidden');
                     }
-                } else {
-                    showError("Invalid ID or Password.");
-                }
-            } catch (error) {
-                showError("Network Error. Check connection.");
-            }
+                } else { showError("Invalid ID or Password."); }
+            } catch (error) { showError("Network Error."); }
             document.getElementById('login-btn').innerText = "Sign In";
         });
 
-        function showError(msg) {
-            errorMsg.innerText = msg;
-            errorMsg.classList.remove('hidden');
-        }
+        function showError(msg) { errorMsg.innerText = msg; errorMsg.classList.remove('hidden'); }
 
         // ADMIN FUNCTIONS
         document.getElementById('add-user-btn').addEventListener('click', async () => {
             const nUid = document.getElementById('new-userid').value.trim();
             const nPass = document.getElementById('new-password').value.trim();
-            
             if(nUid && nPass) {
                 await set(ref(db, 'users/' + nUid), { password: nPass, status: "PENDING" });
-                document.getElementById('new-userid').value = "";
-                document.getElementById('new-password').value = "";
-                alert("Customer created successfully!");
-            } else { alert("Enter both ID and Password"); }
+                document.getElementById('new-userid').value = ""; document.getElementById('new-password').value = "";
+                alert("Customer created!");
+            }
         });
 
         function loadAdminData() {
-            const list = document.getElementById('user-list');
             onValue(ref(db, 'users'), (snapshot) => {
-                list.innerHTML = "";
+                const list = document.getElementById('user-list'); list.innerHTML = "";
                 if(snapshot.exists()) {
                     snapshot.forEach((child) => {
                         const data = child.val();
                         const statusColor = data.status === "FLASHED" ? "text-green-400" : "text-yellow-400";
-                        const li = document.createElement('li');
-                        li.className = "flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10";
-                        li.innerHTML = `
-                            <div>
-                                <span class="font-bold text-blue-300">${child.key}</span>
-                                <span class="text-xs text-white/50 ml-2">Pass: ${data.password}</span>
-                            </div>
-                            <span class="text-xs font-bold ${statusColor} bg-black/30 px-2 py-1 rounded">${data.status}</span>
-                        `;
-                        list.appendChild(li);
+                        list.innerHTML += `<li class="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10">
+                            <div><span class="font-bold text-blue-300">${child.key}</span></div>
+                            <span class="text-xs font-bold ${statusColor}">${data.status}</span></li>`;
                     });
-                } else { list.innerHTML = "<li class='text-center text-white/50'>No customers found.</li>"; }
+                }
             });
         }
 
-        document.getElementById('change-admin-btn').addEventListener('click', async () => {
-            const newPass = document.getElementById('new-admin-pass').value.trim();
-            if(!newPass) { alert("Enter a new password"); return; }
-            await update(ref(db, 'admin'), { password: newPass });
-            adminCreds.password = newPass;
-            document.getElementById('new-admin-pass').value = "";
-            alert("Admin Password updated successfully!");
-        });
-
-        // REAL FLASHING LOGIC (DIRECT LOCAL FETCH)
+        // REAL ESPTOOL-JS FLASHING LOGIC FOR ESP32-S3
         document.getElementById('action-btn').addEventListener('click', async () => {
             const statusText = document.getElementById('status-text');
             const actionBtn = document.getElementById('action-btn');
             const progressContainer = document.getElementById('progress-container');
             const progressBar = document.getElementById('progress-bar');
+            
+            // Get selected flash address (0x10000 or 0x0000)
+            const flashAddress = parseInt(document.getElementById('board-type').value, 16);
 
-            if (!navigator.serial) {
-                alert("Please use Google Chrome or Edge on a PC to flash the device.");
-                return;
-            }
+            if (!navigator.serial) { alert("Use Google Chrome/Edge on a PC."); return; }
 
             let port;
             try {
-                statusText.innerText = "Status: Please select your device COM port...";
                 port = await navigator.serial.requestPort();
-                await port.open({ baudRate: 115200 });
                 
                 actionBtn.classList.add('hidden');
                 progressContainer.classList.remove('hidden');
+                statusText.innerText = "Status: Downloading ESP32-S3 firmware...";
                 
-                statusText.innerText = "Status: Downloading firmware securely...";
-                progressBar.style.width = "20%";
-                
-                // --- DIRECT RELATIVE LINK (NO PROXY NEEDED) ---
-                const firmwareUrl = "./oled_file_v1.bin";
-                
-                const response = await fetch(firmwareUrl);
-                if (!response.ok) throw new Error("Firmware file not found! Check if 'oled_file_v1.bin' is in the repository.");
+                // Fetch the binary file
+                const response = await fetch("./oled_file_v1.bin");
+                if (!response.ok) throw new Error("File not found!");
                 const binData = await response.arrayBuffer();
+                const fileArray = new Uint8Array(binData);
                 
-                statusText.innerText = "Status: Flashing device... Do not disconnect!";
-                progressBar.style.width = "60%";
-                
-                const writer = port.writable.getWriter();
-                await writer.write(new Uint8Array(binData));
-                writer.releaseLock();
-                await port.close();
+                statusText.innerText = "Status: Connecting to ESP32-S3 Bootloader (Do not disconnect)...";
+                progressBar.style.width = "10%";
 
-                progressBar.style.width = "90%";
-                statusText.innerText = "Status: Verifying installation...";
-                await new Promise(r => setTimeout(r, 1000));
+                // Initialize ESPTool
+                const transport = new Transport(port);
+                const esploader = new ESPLoader({
+                    transport: transport,
+                    baudrate: 115200,
+                    terminal: { clean: () => {}, writeLine: (msg) => console.log(msg) }
+                });
+
+                // Put chip into boot mode
+                await esploader.main_fn();
                 
-                progressBar.style.width = "100%";
+                statusText.innerText = `Status: Erasing & Flashing ESP32-S3...`;
                 
-                // UPDATE CUSTOMER STATUS TO FLASHED
+                // Write to flash memory
+                await esploader.write_flash({
+                    fileArray: [{ data: fileArray, address: flashAddress }],
+                    flashSize: "keep",
+                    eraseAll: false,
+                    compress: true,
+                    reportProgress: (fileIndex, written, total) => {
+                        const progress = Math.round((written / total) * 100);
+                        progressBar.style.width = progress + "%";
+                        statusText.innerText = `Status: Flashing... ${progress}%`;
+                    }
+                });
+
+                statusText.innerText = "Status: Rebooting ESP32-S3...";
+                await esploader.hard_reset(); // Restart the board automatically
+                await transport.disconnect();
+
+                // UPDATE FIREBASE
                 await update(ref(db, `users/${currentUserId}`), { status: "FLASHED" });
                 
                 statusText.className = "text-sm font-bold text-green-400 mb-4 text-center";
-                statusText.innerText = "Flashing Complete! Your device is ready.";
+                statusText.innerText = "Success! Code is running on your ESP32-S3.";
                 
-                setTimeout(() => {
-                    alert("Session Locked. You cannot flash again with this ID.");
-                    window.location.reload();
-                }, 4000);
+                setTimeout(() => { window.location.reload(); }, 4000);
                 
             } catch (error) {
                 statusText.className = "text-sm font-bold text-red-400 mb-4 text-center";
-                statusText.innerText = "Error: Download failed or Port disconnected.";
+                statusText.innerText = "Error: Flashing failed. Disconnect and try again.";
+                console.error(error);
                 if (port) { try { await port.close(); } catch(e){} }
                 actionBtn.classList.remove('hidden');
                 progressContainer.classList.add('hidden');
-                console.error(error);
             }
         });
 
         document.getElementById('logout-btn').addEventListener('click', () => window.location.reload());
         document.getElementById('admin-logout-btn').addEventListener('click', () => window.location.reload());
-
     </script>
 </body>
 </html>
