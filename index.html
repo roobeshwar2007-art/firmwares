@@ -113,7 +113,7 @@
         </div>
     </div>
 
-    <!-- MAIN APP SCRIPT (Pure ES Module to handle esptool cleanly) -->
+    <!-- MAIN APP SCRIPT WITH CORRECT API CALLS -->
     <script type="module">
         import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.5.2/+esm";
 
@@ -169,7 +169,7 @@
             }
         });
 
-        // Flash Handler
+        // Flash Handler (Updated with esploader.main() and writeFlash methods)
         document.getElementById('flash-btn').addEventListener('click', async () => {
             const statusText = document.getElementById('status-text');
             const flashBtn = document.getElementById('flash-btn');
@@ -201,17 +201,19 @@
                 statusText.innerText = "Status: Connecting to ESP32-S3...";
                 progressBar.style.width = "10%";
 
-                const transport = new Transport(port);
+                const transport = new Transport(port, true);
                 const esploader = new ESPLoader({
                     transport: transport,
                     baudrate: 115200,
                     terminal: { clean: () => {}, writeLine: (msg) => console.log(msg), write: (msg) => {} }
                 });
 
-                await esploader.main_fn();
-                statusText.innerText = "Status: Flashing firmware to device...";
+                // Fixed: Using official main() method instead of main_fn()
+                const chipName = await esploader.main();
+                statusText.innerText = `Status: Connected to ${chipName}. Flashing firmware...`;
 
-                await esploader.write_flash({
+                // Fixed: Using official writeFlash method
+                await esploader.writeFlash({
                     fileArray: [{ data: fileArray, address: flashAddress }],
                     flashSize: "keep",
                     eraseAll: false,
@@ -224,7 +226,7 @@
                 });
 
                 statusText.innerText = "Status: Rebooting device...";
-                await esploader.hard_reset();
+                await esploader.after("hard_reset");
                 await transport.disconnect();
 
                 localStorage.setItem(`user_${activeUser}_status`, "USED");
