@@ -108,80 +108,109 @@
         const db = getDatabase(app);
         
         let currentUserId = "";
-        let adminCreds = { id: "roobesh", password: "09112007@" };
+        
+        // HARDCODED ADMIN CREDENTIALS (NO FIREBASE REQUIRED FOR ADMIN LOGIN)
+        const ADMIN_ID = "roobesh";
+        const ADMIN_PASS = "09112007@";
 
         const loginSec = document.getElementById('login-section');
         const flashSec = document.getElementById('flash-section');
         const adminSec = document.getElementById('admin-section');
         const errorMsg = document.getElementById('error-msg');
 
-        // Init Admin
-        async function initAdmin() {
-            const snapshot = await get(child(ref(db), `admin`));
-            if (snapshot.exists()) adminCreds = snapshot.val();
-            else await set(ref(db, 'admin'), adminCreds);
-        }
-        initAdmin();
-
-        // LOGIN
+        // LOGIN SYSTEM
         document.getElementById('login-btn').addEventListener('click', async () => {
             const uid = document.getElementById('userid').value.trim();
             const pass = document.getElementById('password').value.trim();
+            
             if(!uid || !pass) { showError("Enter ID and Password"); return; }
             document.getElementById('login-btn').innerText = "Authenticating...";
 
             try {
-                if(uid === adminCreds.id && pass === adminCreds.password) {
-                    loginSec.classList.add('hidden'); adminSec.classList.remove('hidden'); loadAdminData(); return;
+                // 1. Direct Admin Login (Always works)
+                if(uid === ADMIN_ID && pass === ADMIN_PASS) {
+                    loginSec.classList.add('hidden'); 
+                    adminSec.classList.remove('hidden'); 
+                    loadAdminData(); 
+                    document.getElementById('login-btn').innerText = "Sign In";
+                    return;
                 }
+
+                // 2. Customer Login (Checks Firebase)
                 const snapshot = await get(child(ref(db), `users/${uid}`));
                 if (snapshot.exists() && snapshot.val().password === pass) {
-                    if(snapshot.val().status === "FLASHED") { showError("Access Denied: Already flashed."); } 
-                    else {
-                        currentUserId = uid; document.getElementById('display-id').innerText = uid;
-                        errorMsg.classList.add('hidden'); loginSec.classList.add('hidden'); flashSec.classList.remove('hidden');
+                    if(snapshot.val().status === "FLASHED") { 
+                        showError("Access Denied: You have already flashed your device."); 
+                    } else {
+                        currentUserId = uid; 
+                        document.getElementById('display-id').innerText = uid;
+                        errorMsg.classList.add('hidden'); 
+                        loginSec.classList.add('hidden'); 
+                        flashSec.classList.remove('hidden');
                     }
-                } else { showError("Invalid ID or Password."); }
-            } catch (error) { showError("Network Error."); }
+                } else { 
+                    showError("Invalid ID or Password."); 
+                }
+            } catch (error) { 
+                console.error(error);
+                if(error.message && error.message.includes("permission_denied")) {
+                    showError("Database Locked: Go to Firebase Rules and set read/write to true.");
+                } else {
+                    showError("Network Error or Database disconnected."); 
+                }
+            }
             document.getElementById('login-btn').innerText = "Sign In";
         });
 
-        function showError(msg) { errorMsg.innerText = msg; errorMsg.classList.remove('hidden'); }
+        function showError(msg) { 
+            errorMsg.innerText = msg; 
+            errorMsg.classList.remove('hidden'); 
+        }
 
         // ADMIN FUNCTIONS
         document.getElementById('add-user-btn').addEventListener('click', async () => {
             const nUid = document.getElementById('new-userid').value.trim();
             const nPass = document.getElementById('new-password').value.trim();
             if(nUid && nPass) {
-                await set(ref(db, 'users/' + nUid), { password: nPass, status: "PENDING" });
-                document.getElementById('new-userid').value = ""; document.getElementById('new-password').value = "";
-                alert("Customer created!");
+                try {
+                    await set(ref(db, 'users/' + nUid), { password: nPass, status: "PENDING" });
+                    document.getElementById('new-userid').value = ""; 
+                    document.getElementById('new-password').value = "";
+                    alert("Customer created successfully!");
+                } catch(e) {
+                    alert("Error: Check Firebase Database Rules (Set read & write to true).");
+                }
+            } else {
+                alert("Enter ID and Password");
             }
         });
 
         function loadAdminData() {
             onValue(ref(db, 'users'), (snapshot) => {
-                const list = document.getElementById('user-list'); list.innerHTML = "";
+                const list = document.getElementById('user-list'); 
+                list.innerHTML = "";
                 if(snapshot.exists()) {
                     snapshot.forEach((child) => {
                         const data = child.val();
                         const statusColor = data.status === "FLASHED" ? "text-green-400" : "text-yellow-400";
                         list.innerHTML += `<li class="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10">
-                            <div><span class="font-bold text-blue-300">${child.key}</span></div>
+                            <div>
+                                <span class="font-bold text-blue-300">${child.key}</span>
+                                <span class="text-xs text-white/50 ml-2">Pass: ${data.password}</span>
+                            </div>
                             <span class="text-xs font-bold ${statusColor}">${data.status}</span></li>`;
                     });
                 }
             });
         }
 
-        // REAL ESPTOOL-JS FLASHING LOGIC FOR ESP32-S3
+        // ESPTOOL-JS FLASHING LOGIC FOR ESP32-S3
         document.getElementById('action-btn').addEventListener('click', async () => {
             const statusText = document.getElementById('status-text');
             const actionBtn = document.getElementById('action-btn');
             const progressContainer = document.getElementById('progress-container');
             const progressBar = document.getElementById('progress-bar');
             
-            // Get selected flash address (0x10000 or 0x0000)
             const flashAddress = parseInt(document.getElementById('board-type').value, 16);
 
             if (!navigator.serial) { alert("Use Google Chrome/Edge on a PC."); return; }
@@ -194,7 +223,6 @@
                 progressContainer.classList.remove('hidden');
                 statusText.innerText = "Status: Downloading ESP32-S3 firmware...";
                 
-                // Fetch the binary file
                 const response = await fetch("./oled_file_v1.bin");
                 if (!response.ok) throw new Error("File not found!");
                 const binData = await response.arrayBuffer();
@@ -203,7 +231,6 @@
                 statusText.innerText = "Status: Connecting to ESP32-S3 Bootloader (Do not disconnect)...";
                 progressBar.style.width = "10%";
 
-                // Initialize ESPTool
                 const transport = new Transport(port);
                 const esploader = new ESPLoader({
                     transport: transport,
@@ -211,12 +238,9 @@
                     terminal: { clean: () => {}, writeLine: (msg) => console.log(msg) }
                 });
 
-                // Put chip into boot mode
                 await esploader.main_fn();
-                
                 statusText.innerText = `Status: Erasing & Flashing ESP32-S3...`;
                 
-                // Write to flash memory
                 await esploader.write_flash({
                     fileArray: [{ data: fileArray, address: flashAddress }],
                     flashSize: "keep",
@@ -230,10 +254,9 @@
                 });
 
                 statusText.innerText = "Status: Rebooting ESP32-S3...";
-                await esploader.hard_reset(); // Restart the board automatically
+                await esploader.hard_reset();
                 await transport.disconnect();
 
-                // UPDATE FIREBASE
                 await update(ref(db, `users/${currentUserId}`), { status: "FLASHED" });
                 
                 statusText.className = "text-sm font-bold text-green-400 mb-4 text-center";
