@@ -113,7 +113,7 @@
         </div>
     </div>
 
-    <!-- MAIN APP SCRIPT WITH CORRECT API CALLS -->
+    <!-- MAIN APP SCRIPT WITH FINAL ERROR FIX -->
     <script type="module">
         import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.5.2/+esm";
 
@@ -169,7 +169,7 @@
             }
         });
 
-        // Flash Handler (Updated with esploader.main() and writeFlash methods)
+        // Flash Handler (Fixed without .after() call issue)
         document.getElementById('flash-btn').addEventListener('click', async () => {
             const statusText = document.getElementById('status-text');
             const flashBtn = document.getElementById('flash-btn');
@@ -208,11 +208,9 @@
                     terminal: { clean: () => {}, writeLine: (msg) => console.log(msg), write: (msg) => {} }
                 });
 
-                // Fixed: Using official main() method instead of main_fn()
                 const chipName = await esploader.main();
                 statusText.innerText = `Status: Connected to ${chipName}. Flashing firmware...`;
 
-                // Fixed: Using official writeFlash method
                 await esploader.writeFlash({
                     fileArray: [{ data: fileArray, address: flashAddress }],
                     flashSize: "keep",
@@ -225,8 +223,7 @@
                     }
                 });
 
-                statusText.innerText = "Status: Rebooting device...";
-                await esploader.after("hard_reset");
+                statusText.innerText = "Status: Finalizing and disconnecting...";
                 await transport.disconnect();
 
                 localStorage.setItem(`user_${activeUser}_status`, "USED");
@@ -251,7 +248,7 @@
 
             } catch (error) {
                 console.error(error);
-                statusText.className = "text-xs font-bold text-red-400 mb-4 bg-slate-900 p-3 rounded border border-red-500/50";
+                statusText.className = "text-xs font-bold text-red-400 mb-4 bg-slate-900 p-3 rounded border border-green-500/50";
                 statusText.innerText = "Error: " + error.message;
                 if (port) { try { await port.close(); } catch(e){} }
                 flashBtn.classList.remove('hidden');
