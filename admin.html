@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Admin — R Track Creation Flasher</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{--bg:#0b1220;--card:#131b2e;--accent:#3b82f6;--text:#e5e9f2;--muted:#8892a6;--err:#ef4444;--ok:#22c55e;--border:#22304d;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);}
+  header{display:flex;justify-content:space-between;align-items:center;padding:16px 28px;border-bottom:1px solid var(--border);}
+  header h1{font-size:16px;margin:0;} header span{color:var(--muted);font-size:12px;}
+  button.logout{background:none;border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:8px;cursor:pointer;}
+  main{max-width:920px;margin:0 auto;padding:28px;display:grid;gap:24px;}
+  .card{background:var(--card);border-radius:12px;padding:22px;border:1px solid var(--border);}
+  .card h2{font-size:15px;margin:0 0 16px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;}
+  label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px;}
+  input,select{padding:9px 10px;border-radius:7px;border:1px solid var(--border);background:#0e1728;color:var(--text);font-size:13px;}
+  .field{flex:1;min-width:140px;}
+  button.primary{background:var(--accent);border:none;color:#fff;padding:10px 18px;border-radius:7px;font-weight:600;cursor:pointer;align-self:flex-end;}
+  button.primary:hover{background:#2563eb;}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px;}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--border);}
+  th{color:var(--muted);font-weight:500;}
+  .del{color:var(--err);cursor:pointer;background:none;border:none;font-size:12px;}
+  .msg{font-size:13px;margin-top:10px;min-height:16px;}
+  .ok{color:var(--ok);} .errtxt{color:var(--err);}
+</style>
+</head>
+<body>
+<header>
+  <h1>Admin Console <span id="whoami"></span></h1>
+  <button class="logout" id="logoutBtn">Log out</button>
+</header>
+<main>
+
+  <div class="card">
+    <h2>Upload Firmware (.bin)</h2>
+    <form id="fwForm" class="row">
+      <div class="field"><label>Product name</label><input name="name" placeholder="qToolLite Firmware" required></div>
+      <div class="field"><label>Version</label><input name="version" placeholder="1.0.3" required></div>
+      <div class="field"><label>Flash address</label><input name="flash_address" placeholder="0x0" value="0x0" required></div>
+      <div class="field">
+        <label>Chip</label>
+        <select name="chip"><option value="esp32s3">ESP32-S3</option><option value="esp32">ESP32</option><option value="esp32c3">ESP32-C3</option></select>
+      </div>
+      <div class="field" style="flex-basis:100%"><label>.bin file</label><input type="file" name="firmware" accept=".bin" required></div>
+      <button class="primary" type="submit">Upload</button>
+    </form>
+    <div class="msg" id="fwMsg"></div>
+    <table id="fwTable"><thead><tr><th>Name</th><th>Version</th><th>Chip</th><th>Address</th><th>Uploaded</th><th></th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <h2>Create Customer Account</h2>
+    <form id="userForm" class="row">
+      <div class="field"><label>Username</label><input name="username" required></div>
+      <div class="field"><label>Password</label><input name="password" type="text" required></div>
+      <div class="field">
+        <label>Role</label>
+        <select name="role"><option value="user">Customer (user)</option><option value="admin">Admin</option></select>
+      </div>
+      <button class="primary" type="submit">Create</button>
+    </form>
+    <div class="msg" id="userMsg"></div>
+    <table id="userTable"><thead><tr><th>Username</th><th>Role</th><th>Created</th><th></th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <h2>Recent Flash Activity</h2>
+    <table id="logTable"><thead><tr><th>User</th><th>Firmware</th><th>Status</th><th>When</th></tr></thead><tbody></tbody></table>
+  </div>
+
+</main>
+
+<script>
+async function guard() {
+  const me = await fetch('/api/me').then(r => r.json());
+  if (!me.loggedIn) return window.location.href = '/index.html';
+  if (me.role !== 'admin') return window.location.href = '/user.html';
+  document.getElementById('whoami').textContent = '· ' + me.username;
+}
+
+document.getElementById('logoutBtn').onclick = async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.href = '/index.html';
+};
+
+async function loadFirmware() {
+  const rows = await fetch('/api/firmware').then(r => r.json());
+  const tbody = document.querySelector('#fwTable tbody');
+  tbody.innerHTML = rows.map(f => `<tr>
+    <td>${f.name}</td><td>${f.version}</td><td>${f.chip}</td><td>${f.flash_address}</td>
+    <td>${f.created_at}</td>
+    <td><button class="del" onclick="delFirmware(${f.id})">Delete</button></td>
+  </tr>`).join('');
+}
+async function delFirmware(id) {
+  if (!confirm('Delete this firmware?')) return;
+  await fetch('/api/admin/firmware/' + id, { method: 'DELETE' });
+  loadFirmware();
+}
+
+async function loadUsers() {
+  const rows = await fetch('/api/admin/users').then(r => r.json());
+  const tbody = document.querySelector('#userTable tbody');
+  tbody.innerHTML = rows.map(u => `<tr>
+    <td>${u.username}</td><td>${u.role}</td><td>${u.created_at}</td>
+    <td>${u.role !== 'admin' ? `<button class="del" onclick="delUser(${u.id})">Delete</button>` : ''}</td>
+  </tr>`).join('');
+}
+async function delUser(id) {
+  if (!confirm('Delete this user?')) return;
+  await fetch('/api/admin/users/' + id, { method: 'DELETE' });
+  loadUsers();
+}
+
+async function loadLog() {
+  const rows = await fetch('/api/admin/flash-log').then(r => r.json());
+  const tbody = document.querySelector('#logTable tbody');
+  tbody.innerHTML = rows.map(l => `<tr>
+    <td>${l.username || '—'}</td><td>${l.firmware_name || '—'} ${l.version || ''}</td>
+    <td>${l.status}</td><td>${l.created_at}</td>
+  </tr>`).join('');
+}
+
+document.getElementById('fwForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const msg = document.getElementById('fwMsg');
+  msg.className = 'msg'; msg.textContent = 'Uploading...';
+  const res = await fetch('/api/admin/firmware', { method: 'POST', body: fd });
+  const data = await res.json();
+  if (!res.ok) { msg.className = 'msg errtxt'; msg.textContent = data.error || 'Upload failed'; return; }
+  msg.className = 'msg ok'; msg.textContent = 'Uploaded.';
+  e.target.reset();
+  loadFirmware();
+});
+
+document.getElementById('userForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = Object.fromEntries(fd.entries());
+  const msg = document.getElementById('userMsg');
+  const res = await fetch('/api/admin/users', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) { msg.className = 'msg errtxt'; msg.textContent = data.error || 'Failed'; return; }
+  msg.className = 'msg ok'; msg.textContent = 'Account created — share the username & password with the customer.';
+  e.target.reset();
+  loadUsers();
+});
+
+guard().then(() => { loadFirmware(); loadUsers(); loadLog(); });
+</script>
+</body>
+</html>

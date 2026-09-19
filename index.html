@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>R Track Creation — Flasher Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{--bg:#0b1220;--card:#131b2e;--accent:#3b82f6;--text:#e5e9f2;--muted:#8892a6;--err:#ef4444;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);
+       display:flex;align-items:center;justify-content:center;min-height:100vh;}
+  .card{background:var(--card);padding:36px;border-radius:14px;width:340px;box-shadow:0 10px 30px rgba(0,0,0,.4);}
+  .card h1{font-size:20px;margin:0 0 4px;}
+  .card p.sub{color:var(--muted);font-size:13px;margin:0 0 24px;}
+  label{font-size:13px;color:var(--muted);display:block;margin:14px 0 6px;}
+  input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #2a3550;
+        background:#0e1728;color:var(--text);font-size:14px;}
+  input:focus{outline:none;border-color:var(--accent);}
+  button{width:100%;margin-top:22px;padding:11px;border:none;border-radius:8px;
+         background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;}
+  button:hover{background:#2563eb;}
+  #msg{margin-top:14px;font-size:13px;color:var(--err);min-height:16px;}
+  .brand{text-align:center;color:var(--muted);font-size:12px;margin-top:18px;}
+</style>
+</head>
+<body>
+  <form class="card" id="loginForm">
+    <h1>ESP32-S3 Flasher</h1>
+    <p class="sub">Sign in to flash your device</p>
+    <label>Username</label>
+    <input id="username" autocomplete="username" required>
+    <label>Password</label>
+    <input id="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Log In</button>
+    <div id="msg"></div>
+    <div class="brand">R Track Creation</div>
+  </form>
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const msg = document.getElementById('msg');
+  msg.style.color = '#ef4444';
+  msg.textContent = '';
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) { msg.textContent = data.error || 'Login failed'; return; }
+    window.location.href = data.role === 'admin' ? '/admin.html' : '/user.html';
+  } catch (err) {
+    msg.textContent = 'Network error';
+  }
+});
+
+// If already logged in, redirect straight to the right dashboard
+fetch('/api/me').then(r => r.json()).then(d => {
+  if (d.loggedIn) window.location.href = d.role === 'admin' ? '/admin.html' : '/user.html';
+});
+</script>
+</body>
+</html>

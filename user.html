@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flash Your Device — R Track Creation</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{--bg:#0b1220;--card:#131b2e;--accent:#3b82f6;--text:#e5e9f2;--muted:#8892a6;--err:#ef4444;--ok:#22c55e;--border:#22304d;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);}
+  header{display:flex;justify-content:space-between;align-items:center;padding:16px 28px;border-bottom:1px solid var(--border);}
+  header h1{font-size:16px;margin:0;} header span{color:var(--muted);font-size:12px;}
+  button.logout{background:none;border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:8px;cursor:pointer;}
+  main{max-width:640px;margin:0 auto;padding:28px;display:grid;gap:20px;}
+  .card{background:var(--card);border-radius:12px;padding:22px;border:1px solid var(--border);}
+  .card h2{font-size:15px;margin:0 0 14px;}
+  select{width:100%;padding:10px;border-radius:7px;border:1px solid var(--border);background:#0e1728;color:var(--text);font-size:14px;margin-bottom:14px;}
+  button.primary{width:100%;background:var(--accent);border:none;color:#fff;padding:13px;border-radius:8px;font-weight:600;font-size:15px;cursor:pointer;}
+  button.primary:hover{background:#2563eb;}
+  button.primary:disabled{background:#374151;cursor:not-allowed;}
+  .bar-outer{height:10px;border-radius:6px;background:#0e1728;margin-top:16px;overflow:hidden;border:1px solid var(--border);}
+  .bar-inner{height:100%;width:0%;background:var(--accent);transition:width .2s;}
+  #status{margin-top:12px;font-size:13px;color:var(--muted);}
+  #status.ok{color:var(--ok);} #status.err{color:var(--err);}
+  .log{margin-top:14px;background:#0a1120;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:11.5px;
+       max-height:220px;overflow-y:auto;color:#9aa5c0;white-space:pre-wrap;border:1px solid var(--border);}
+  .hint{color:var(--muted);font-size:12px;margin-top:8px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>Flash Your Device <span id="whoami"></span></h1>
+  <button class="logout" id="logoutBtn">Log out</button>
+</header>
+<main>
+  <div class="card">
+    <h2>1. Choose firmware</h2>
+    <select id="fwSelect"></select>
+
+    <h2>2. Connect &amp; Flash</h2>
+    <button class="primary" id="flashBtn">🔌 Connect ESP32-S3 &amp; Flash</button>
+    <div class="bar-outer"><div class="bar-inner" id="bar"></div></div>
+    <div id="status">Plug in your ESP32-S3 over USB, then click the button above.</div>
+    <div class="hint">Works in Chrome or Edge (desktop). The device connection dialog is provided by your browser.</div>
+    <div class="log" id="log"></div>
+  </div>
+</main>
+
+<script src="https://unpkg.com/esptool-js/bundle.js"></script>
+<script>
+let firmwareList = [];
+
+async function guard() {
+  const me = await fetch('/api/me').then(r => r.json());
+  if (!me.loggedIn) return window.location.href = '/index.html';
+  document.getElementById('whoami').textContent = '· ' + me.username;
+}
+
+document.getElementById('logoutBtn').onclick = async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.href = '/index.html';
+};
+
+async function loadFirmware() {
+  firmwareList = await fetch('/api/firmware').then(r => r.json());
+  const sel = document.getElementById('fwSelect');
+  if (firmwareList.length === 0) {
+    sel.innerHTML = '<option>No firmware available yet</option>';
+    document.getElementById('flashBtn').disabled = true;
+    return;
+  }
+  sel.innerHTML = firmwareList.map(f =>
+    `<option value="${f.id}">${f.name} — v${f.version} (${f.chip}, @ ${f.flash_address})</option>`
+  ).join('');
+}
+
+function setStatus(text, cls) {
+  const el = document.getElementById('status');
+  el.textContent = text;
+  el.className = cls || '';
+}
+function setBar(pct) { document.getElementById('bar').style.width = pct + '%'; }
+function logLine(s) {
+  const el = document.getElementById('log');
+  el.textContent += s + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+// esptool-js terminal shim -> writes into our on-page log box
+const termShim = {
+  clean() { document.getElementById('log').textContent = ''; },
+  writeLine(data) { logLine(data); },
+  write(data) { logLine(data); }
+};
+
+async function logFlashResult(firmwareId, status) {
+  try {
+    await fetch('/api/flash-log', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firmware_id: firmwareId, status })
+    });
+  } catch (e) { /* non-fatal */ }
+}
+
+document.getElementById('flashBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('flashBtn');
+  const fwId = document.getElementById('fwSelect').value;
+  const fw = firmwareList.find(f => String(f.id) === String(fwId));
+  if (!fw) { setStatus('Pick a firmware first.', 'err'); return; }
+
+  if (!('serial' in navigator)) {
+    setStatus('This browser does not support Web Serial. Use Chrome or Edge on desktop.', 'err');
+    return;
+  }
+
+  btn.disabled = true;
+  setBar(0);
+  setStatus('Requesting device connection...');
+  let transport, esploader;
+
+  try {
+    const { ESPLoader, Transport } = esptooljs;
+
+    const device = await navigator.serial.requestPort();
+    transport = new Transport(device, true);
+
+    esploader = new ESPLoader({
+      transport,
+      baudrate: 460800,
+      terminal: termShim
+    });
+
+    setStatus('Connecting to chip...');
+    const chipName = await esploader.main();
+    setStatus('Connected: ' + chipName + '. Downloading firmware...');
+
+    // Fetch the firmware bytes via the authenticated, session-gated endpoint.
+    // The bin is streamed straight into the flasher — never saved to disk or
+    // offered as a downloadable link.
+    const res = await fetch('/api/firmware/' + fw.id + '/bin');
+    if (!res.ok) throw new Error('Could not fetch firmware (are you still logged in?)');
+    const buf = await res.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binaryStr = '';
+    for (let i = 0; i < bytes.length; i++) binaryStr += String.fromCharCode(bytes[i]);
+
+    const address = parseInt(fw.flash_address, 16);
+
+    setStatus('Flashing... keep the device connected.');
+    await esploader.writeFlash({
+      fileArray: [{ data: binaryStr, address }],
+      flashSize: 'keep',
+      eraseAll: false,
+      compress: true,
+      reportProgress: (fileIndex, written, total) => {
+        const pct = Math.round((written / total) * 100);
+        setBar(pct);
+        setStatus('Flashing... ' + pct + '%');
+      }
+    });
+
+    await esploader.hardReset();
+    setBar(100);
+    setStatus('✅ Flash successful! Your device is rebooting.', 'ok');
+    await logFlashResult(fw.id, 'success');
+
+  } catch (err) {
+    console.error(err);
+    setStatus('❌ Flash failed: ' + (err.message || err), 'err');
+    await logFlashResult(fw.id, 'failed: ' + (err.message || err));
+  } finally {
+    try { if (transport) await transport.disconnect(); } catch (e) {}
+    btn.disabled = false;
+  }
+});
+
+guard().then(loadFirmware);
+</script>
+</body>
+</html>
