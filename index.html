@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESP32-S3 Secure Flasher</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- ESPTOOL-JS க்கான Crypto லைப்ரரி (மிக முக்கியம்) -->
+    <!-- Crypto JS for ESPTool -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow-x: hidden; margin: 0; background-color: #1a1a1a; }
@@ -50,7 +50,6 @@
             <p class="text-white/70 text-sm mt-1">Logged in as: <span id="display-id" class="font-bold text-white"></span></p>
         </div>
 
-        <!-- ESP32-S3 Board Selection -->
         <div class="mb-4 text-left">
             <label class="text-xs text-white/70 mb-1 block">Select Firmware Type:</label>
             <select id="board-type" class="w-full glass-input rounded-xl px-3 py-2 text-sm text-black">
@@ -93,8 +92,6 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getDatabase, ref, set, get, child, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
-        
-        // Espressif Official ESPTool-JS
         import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.3.1/lib/index.js";
 
         const firebaseConfig = {
@@ -108,8 +105,6 @@
         const db = getDatabase(app);
         
         let currentUserId = "";
-        
-        // HARDCODED ADMIN CREDENTIALS (NO FIREBASE REQUIRED FOR ADMIN LOGIN)
         const ADMIN_ID = "roobesh";
         const ADMIN_PASS = "09112007@";
 
@@ -118,48 +113,56 @@
         const adminSec = document.getElementById('admin-section');
         const errorMsg = document.getElementById('error-msg');
 
-        // LOGIN SYSTEM
+        // LOGIN SYSTEM FIXED
         document.getElementById('login-btn').addEventListener('click', async () => {
             const uid = document.getElementById('userid').value.trim();
             const pass = document.getElementById('password').value.trim();
             
-            if(!uid || !pass) { showError("Enter ID and Password"); return; }
-            document.getElementById('login-btn').innerText = "Authenticating...";
+            if(!uid || !pass) { 
+                showError("Please enter ID and Password"); 
+                return; 
+            }
+            
+            const btn = document.getElementById('login-btn');
+            btn.innerText = "Checking...";
 
             try {
-                // 1. Direct Admin Login (Always works)
+                // 1. Admin Login Check
                 if(uid === ADMIN_ID && pass === ADMIN_PASS) {
+                    console.log("Admin logged in successfully");
                     loginSec.classList.add('hidden'); 
                     adminSec.classList.remove('hidden'); 
                     loadAdminData(); 
-                    document.getElementById('login-btn').innerText = "Sign In";
+                    btn.innerText = "Sign In";
                     return;
                 }
 
-                // 2. Customer Login (Checks Firebase)
-                const snapshot = await get(child(ref(db), `users/${uid}`));
-                if (snapshot.exists() && snapshot.val().password === pass) {
-                    if(snapshot.val().status === "FLASHED") { 
-                        showError("Access Denied: You have already flashed your device."); 
+                // 2. Customer Login Check via Firebase
+                const userRef = ref(db, 'users/' + uid);
+                const snapshot = await get(userRef);
+                
+                if (snapshot.exists()) {
+                    const userData = snapshot.val();
+                    if(userData.password === pass) {
+                        if(userData.status === "FLASHED") {
+                            showError("Access Denied: Already flashed.");
+                        } else {
+                            currentUserId = uid;
+                            document.getElementById('display-id').innerText = uid;
+                            loginSec.classList.add('hidden');
+                            flashSec.classList.remove('hidden');
+                        }
                     } else {
-                        currentUserId = uid; 
-                        document.getElementById('display-id').innerText = uid;
-                        errorMsg.classList.add('hidden'); 
-                        loginSec.classList.add('hidden'); 
-                        flashSec.classList.remove('hidden');
+                        showError("Incorrect Password!");
                     }
-                } else { 
-                    showError("Invalid ID or Password."); 
-                }
-            } catch (error) { 
-                console.error(error);
-                if(error.message && error.message.includes("permission_denied")) {
-                    showError("Database Locked: Go to Firebase Rules and set read/write to true.");
                 } else {
-                    showError("Network Error or Database disconnected."); 
+                    showError("User ID not found!");
                 }
+            } catch (err) {
+                console.error("Login Error:", err);
+                showError("Connection error. Check Firebase Rules (.read/.write = true)");
             }
-            document.getElementById('login-btn').innerText = "Sign In";
+            btn.innerText = "Sign In";
         });
 
         function showError(msg) { 
@@ -167,10 +170,11 @@
             errorMsg.classList.remove('hidden'); 
         }
 
-        // ADMIN FUNCTIONS
+        // ADD USER
         document.getElementById('add-user-btn').addEventListener('click', async () => {
             const nUid = document.getElementById('new-userid').value.trim();
             const nPass = document.getElementById('new-password').value.trim();
+            
             if(nUid && nPass) {
                 try {
                     await set(ref(db, 'users/' + nUid), { password: nPass, status: "PENDING" });
@@ -178,10 +182,10 @@
                     document.getElementById('new-password').value = "";
                     alert("Customer created successfully!");
                 } catch(e) {
-                    alert("Error: Check Firebase Database Rules (Set read & write to true).");
+                    alert("Failed to create user. Check Firebase Rules.");
                 }
             } else {
-                alert("Enter ID and Password");
+                alert("Enter both ID and Password");
             }
         });
 
@@ -200,11 +204,13 @@
                             </div>
                             <span class="text-xs font-bold ${statusColor}">${data.status}</span></li>`;
                     });
+                } else {
+                    list.innerHTML = "<li class='text-center text-white/50'>No users found.</li>";
                 }
             });
         }
 
-        // ESPTOOL-JS FLASHING LOGIC FOR ESP32-S3
+        // ESP32-S3 FLASHING
         document.getElementById('action-btn').addEventListener('click', async () => {
             const statusText = document.getElementById('status-text');
             const actionBtn = document.getElementById('action-btn');
@@ -213,7 +219,10 @@
             
             const flashAddress = parseInt(document.getElementById('board-type').value, 16);
 
-            if (!navigator.serial) { alert("Use Google Chrome/Edge on a PC."); return; }
+            if (!navigator.serial) { 
+                alert("Use Google Chrome or Edge browser on PC."); 
+                return; 
+            }
 
             let port;
             try {
@@ -221,14 +230,14 @@
                 
                 actionBtn.classList.add('hidden');
                 progressContainer.classList.remove('hidden');
-                statusText.innerText = "Status: Downloading ESP32-S3 firmware...";
+                statusText.innerText = "Status: Downloading firmware...";
                 
                 const response = await fetch("./oled_file_v1.bin");
-                if (!response.ok) throw new Error("File not found!");
+                if (!response.ok) throw new Error("Firmware file 'oled_file_v1.bin' not found in GitHub repository!");
                 const binData = await response.arrayBuffer();
                 const fileArray = new Uint8Array(binData);
                 
-                statusText.innerText = "Status: Connecting to ESP32-S3 Bootloader (Do not disconnect)...";
+                statusText.innerText = "Status: Connecting to ESP32-S3...";
                 progressBar.style.width = "10%";
 
                 const transport = new Transport(port);
@@ -239,7 +248,7 @@
                 });
 
                 await esploader.main_fn();
-                statusText.innerText = `Status: Erasing & Flashing ESP32-S3...`;
+                statusText.innerText = `Status: Flashing ESP32-S3...`;
                 
                 await esploader.write_flash({
                     fileArray: [{ data: fileArray, address: flashAddress }],
@@ -253,20 +262,20 @@
                     }
                 });
 
-                statusText.innerText = "Status: Rebooting ESP32-S3...";
+                statusText.innerText = "Status: Rebooting device...";
                 await esploader.hard_reset();
                 await transport.disconnect();
 
                 await update(ref(db, `users/${currentUserId}`), { status: "FLASHED" });
                 
                 statusText.className = "text-sm font-bold text-green-400 mb-4 text-center";
-                statusText.innerText = "Success! Code is running on your ESP32-S3.";
+                statusText.innerText = "Success! ESP32-S3 flashed successfully.";
                 
                 setTimeout(() => { window.location.reload(); }, 4000);
                 
             } catch (error) {
                 statusText.className = "text-sm font-bold text-red-400 mb-4 text-center";
-                statusText.innerText = "Error: Flashing failed. Disconnect and try again.";
+                statusText.innerText = "Error: Flashing failed. Check console for details.";
                 console.error(error);
                 if (port) { try { await port.close(); } catch(e){} }
                 actionBtn.classList.remove('hidden');
