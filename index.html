@@ -6,7 +6,7 @@
     <title>Apple Glass Firmware Flasher</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow-x: hidden; margin: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow-x: hidden; margin: 0; background-color: #1a1a1a; }
         .hidden { display: none !important; }
         
         /* Apple Glassmorphism Effect */
@@ -43,12 +43,12 @@
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
 
-    <!-- Background Video -->
+    <!-- Background Video (Ensure bg-video.mp4 is uploaded to your repo) -->
     <video autoplay loop muted playsinline class="fixed top-0 left-0 w-full h-full object-cover z-[-1]">
-        <source src="https://cdn.pixabay.com/video/2020/09/24/50536-461324393_large.mp4" type="video/mp4">
+        <source src="./bg-video.mp4" type="video/mp4">
     </video>
 
-    <!-- Dark Overlay -->
+    <!-- Dark Overlay to make text readable -->
     <div class="fixed top-0 left-0 w-full h-full bg-black/40 z-[-1]"></div>
 
     <!-- Header -->
@@ -252,7 +252,7 @@
             alert("Admin Password updated successfully!");
         });
 
-        // REAL FLASHING LOGIC (With CORS Proxy)
+        // REAL FLASHING LOGIC (DIRECT LOCAL FETCH)
         document.getElementById('action-btn').addEventListener('click', async () => {
             const statusText = document.getElementById('status-text');
             const actionBtn = document.getElementById('action-btn');
@@ -273,14 +273,14 @@
                 actionBtn.classList.add('hidden');
                 progressContainer.classList.remove('hidden');
                 
-                statusText.innerText = "Status: Downloading firmware securely from GitHub...";
+                statusText.innerText = "Status: Downloading firmware securely...";
                 progressBar.style.width = "20%";
                 
-                // ACTUAL FIRMWARE URL WITH CORS PROXY TO PREVENT ERRORS
-                const firmwareUrl = "https://corsproxy.io/?https://raw.githubusercontent.com/roobeshwar2007-art/firmwares/refs/heads/main/oled_file_v1.bin";
+                // --- DIRECT RELATIVE LINK (NO PROXY NEEDED) ---
+                const firmwareUrl = "./oled_file_v1.bin";
                 
                 const response = await fetch(firmwareUrl);
-                if (!response.ok) throw new Error("Network response was not ok");
+                if (!response.ok) throw new Error("Firmware file not found! Check if 'oled_file_v1.bin' is in the repository.");
                 const binData = await response.arrayBuffer();
                 
                 statusText.innerText = "Status: Flashing device... Do not disconnect!";
