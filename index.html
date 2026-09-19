@@ -59,7 +59,7 @@
             </select>
         </div>
 
-        <div id="status-text" class="text-xs font-semibold text-blue-300 mb-4 bg-slate-900/80 p-3 rounded-lg border border-slate-700">Status: Ready to connect device</div>
+        <div id="status-text" class="text-xs font-semibold text-blue-300 mb-4 bg-slate-900/80 p-3 rounded-lg border border-slate-700">Status: Ready to flash device</div>
         
         <div id="progress-container" class="hidden w-full bg-slate-700 rounded-full h-2 mb-4">
             <div id="progress-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
@@ -72,9 +72,9 @@
         <!-- SD Card / Connection Files Download Box -->
         <div id="asset-download-box" class="hidden mt-4 p-4 bg-slate-900/90 rounded-xl border border-green-500/50 text-left">
             <h3 class="text-xs font-bold text-green-400 mb-1">📦 Connection & SD Card Assets Unlocked</h3>
-            <p class="text-xs text-slate-400 mb-3">Flashing completed successfully. Download your assets below:</p>
-            <a id="download-link" href="#" download="Connection_Details.txt" class="block w-full text-center bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-2.5 rounded-lg transition-all">
-                Download Connection / SD Files
+            <p class="text-xs text-slate-400 mb-3">Flashing completed successfully. Download your file below:</p>
+            <a id="download-link" href="#" download="SD_Card_Files.zip" class="block w-full text-center bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-2.5 rounded-lg transition-all">
+                Download SD Card / Connection Files
             </a>
         </div>
 
@@ -99,9 +99,9 @@
 
             <!-- Upload SD Card / Connection Files -->
             <div class="bg-white/5 p-4 rounded-xl border border-white/10">
-                <h3 class="font-semibold text-slate-200 mb-2">Upload Connection / SD Card Files</h3>
+                <h3 class="font-semibold text-slate-200 mb-2">Upload SD Card / Connection File (ZIP / PDF / TXT)</h3>
                 <input type="file" id="asset-file-input" class="w-full text-slate-400 mb-2 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500">
-                <button onclick="uploadAssetFile()" class="w-full bg-green-600 hover:bg-green-500 font-semibold py-2 rounded">Upload Asset for Customers</button>
+                <button onclick="uploadAssetFile()" class="w-full bg-green-600 hover:bg-green-500 font-semibold py-2 rounded">Save & Upload Asset</button>
             </div>
 
             <!-- Force Logout Control -->
@@ -167,7 +167,7 @@
             }
         }
 
-        // Safe & Stable Flashing Simulation (Prevents browser blockages)
+        // Flashing Simulation Process
         async function startSimulationFlash() {
             const statusText = document.getElementById('status-text');
             const flashBtn = document.getElementById('flash-btn');
@@ -198,13 +198,21 @@
             statusText.className = "text-xs font-bold text-green-400 mb-4 bg-slate-900 p-3 rounded border border-green-500/50";
             statusText.innerText = "Success! Device flashed and token permanently locked.";
 
-            // Show SD Card / Connection file download box with R TRACK CREATION details
-            const defaultContent = "=== R TRACK CREATION OFFICIAL GUIDE ===\r\nOLED: SDA GPIO15, SCL GPIO16\r\nButtons: Up GPIO41, Down GPIO40, Left GPIO39, Right GPIO38, OK GPIO0, Back GPIO1\r\nSD Card: CS GPIO3, MISO GPIO8, MOSI GPIO17, SCK GPIO18\r\nCC1101: SCK GPIO13, MISO GPIO11, MOSI GPIO12, CS GPIO46, GDO0 GPIO9, GDO2 GPIO10\r\nNRF24L01: SCK GPIO13, MISO GPIO11, MOSI GPIO12, CS GPIO14, CE GPIO21\r\nIR: TX GPIO5, RX GPIO4\r\nWS2812: DATA GPIO45\r\nBattery ADC: GPIO2";
-            const savedContent = localStorage.getItem("admin_uploaded_asset") || defaultContent;
-            
-            const blob = new Blob([savedContent], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            document.getElementById('download-link').href = url;
+            // Load saved asset file (ZIP/PDF/TXT) from localStorage
+            const savedDataUrl = localStorage.getItem("admin_uploaded_asset");
+            const downloadLink = document.getElementById('download-link');
+
+            if (savedDataUrl) {
+                downloadLink.href = savedDataUrl;
+                downloadLink.download = localStorage.getItem("admin_uploaded_filename") || "SD_Card_Files.zip";
+            } else {
+                // Fallback text if no file uploaded
+                const defaultContent = "=== R TRACK CREATION OFFICIAL GUIDE ===\r\nOLED: SDA GPIO15, SCL GPIO16\r\nButtons: Up GPIO41, Down GPIO40, Left GPIO39, Right GPIO38, OK GPIO0, Back GPIO1\r\nSD Card: CS GPIO3, MISO GPIO8, MOSI GPIO17, SCK GPIO18";
+                const blob = new Blob([defaultContent], { type: 'text/plain' });
+                downloadLink.href = URL.createObjectURL(blob);
+                downloadLink.download = "Connection_Details.txt";
+            }
+
             document.getElementById('asset-download-box').classList.remove('hidden');
         }
 
@@ -222,6 +230,7 @@
             document.getElementById('new-pass').value = '';
         }
 
+        // Fixed File Upload using Base64 so ZIP/Binary files save properly without issues
         function uploadAssetFile() {
             const fileInput = document.getElementById('asset-file-input');
             if(fileInput.files.length === 0) {
@@ -230,11 +239,19 @@
             }
             const file = fileInput.files[0];
             const reader = new FileReader();
+            
             reader.onload = function(e) {
                 localStorage.setItem("admin_uploaded_asset", e.target.result);
-                alert("Asset file uploaded successfully for customers!");
+                localStorage.setItem("admin_uploaded_filename", file.name);
+                alert(`Success! File '${file.name}' saved successfully. Customers can download it after flashing.`);
             };
-            reader.readAsText(file);
+            
+            reader.onerror = function() {
+                alert("Error reading file. Please try again.");
+            };
+
+            // Read file as Data URL to support ZIP, PDF, and binary assets safely
+            reader.readAsDataURL(file);
         }
 
         function forceGlobalLogout() {
